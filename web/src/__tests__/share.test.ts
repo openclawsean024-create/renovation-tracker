@@ -11,6 +11,7 @@ import {
   buildShareUrl,
   decodeShareHash,
   encodeShareSnapshot,
+  hasShareHash,
   stripShareUrl,
   type ShareSnapshot,
 } from '../share'
@@ -585,5 +586,125 @@ describe('buildShareSnapshot + URL helpers', () => {
   it('stripShareUrl removes the entire hash when share was the only param', () => {
     const stripped = stripShareUrl(`https://example.test/app#${SHARE_HASH_KEY}=abc`)
     expect(stripped).toBe('https://example.test/app')
+  })
+
+  it('stripShareUrl removes a page anchor when rebuilding a share URL', () => {
+    const stripped = stripShareUrl('https://example.test/app#timeline')
+    expect(stripped).toBe('https://example.test/app')
+  })
+
+  it('stripShareUrl strips a page anchor that appears before the share param', () => {
+    const stripped = stripShareUrl(`https://example.test/app#timeline&${SHARE_HASH_KEY}=abc`)
+    expect(stripped).toBe('https://example.test/app')
+  })
+
+  it('stripShareUrl strips a page anchor that appears after the share param', () => {
+    const stripped = stripShareUrl(`https://example.test/app#${SHARE_HASH_KEY}=abc&timeline`)
+    expect(stripped).toBe('https://example.test/app')
+  })
+})
+
+// Regression: clicking a section anchor such as #timeline must NOT enter
+// share mode. Only `#share=...` (and its combinations) is a share hash.
+describe('hasShareHash — distinguishes section anchors from share hashes', () => {
+  it('returns false for empty/null/undefined', () => {
+    expect(hasShareHash('')).toBe(false)
+    expect(hasShareHash(null)).toBe(false)
+    expect(hasShareHash(undefined)).toBe(false)
+  })
+
+  it('returns false for plain section anchors', () => {
+    expect(hasShareHash('#timeline')).toBe(false)
+    expect(hasShareHash('#budget')).toBe(false)
+    expect(hasShareHash('#photos')).toBe(false)
+    expect(hasShareHash('#schedule')).toBe(false)
+    expect(hasShareHash('#warranties')).toBe(false)
+    expect(hasShareHash('#overview')).toBe(false)
+  })
+
+  it('returns false for a hash without a key=value pair', () => {
+    expect(hasShareHash('#share')).toBe(false)
+    expect(hasShareHash('#timeline&photos')).toBe(false)
+  })
+
+  it('returns true for a valid share hash', () => {
+    expect(hasShareHash('#share=abc')).toBe(true)
+    expect(hasShareHash('share=abc')).toBe(true)
+  })
+
+  it('returns true for a share hash combined with a section anchor', () => {
+    expect(hasShareHash('#share=abc&timeline')).toBe(true)
+    expect(hasShareHash('#timeline&share=abc')).toBe(true)
+    expect(hasShareHash('#share=abc&timeline&budget')).toBe(true)
+  })
+
+  it('returns false for a hash that contains a similar but different key', () => {
+    expect(hasShareHash('#shares=abc')).toBe(false)
+    expect(hasShareHash('#myshare=abc')).toBe(false)
+    expect(hasShareHash('#timeline&other=abc')).toBe(false)
+  })
+
+  it('returns true for a share hash with an empty encoded value (decoder will reject it)', () => {
+    // `hasShareHash` is intentionally lenient — the decoder is the authority
+    // on whether the payload is valid. This test pins that contract so a
+    // future refactor does not silently accept bare `#share=`.
+    expect(hasShareHash('#share=')).toBe(true)
+  })
+})
+
+// Regression: generating a share URL while the current URL has a section
+// anchor must produce exactly one valid `#share=...` fragment — never a
+// double-hash URL like `#timeline#share=...`.
+describe('buildShareUrl — produces a clean share URL regardless of current hash', () => {
+  it('produces a clean share URL when the current URL is a bare section anchor', () => {
+    const snapshot = makeSnapshot()
+    const url = buildShareUrl(snapshot, {
+      href: 'https://example.test/app#timeline',
+      hash: '#timeline',
+    })
+    // Must NOT contain a double hash.
+    expect(url).not.toMatch(/#.*#/)
+    // Must contain exactly one # followed by share=.
+    expect(url).toMatch(/^https:\/\/example\.test\/app#share=/)
+    // The fragment must decode back to the snapshot.
+    const fragment = url.split('#')[1] ?? ''
+    const encoded = fragment.split('&').find((p) => p.startsWith(`${SHARE_HASH_KEY}=`))?.slice(SHARE_HASH_KEY.length + 1)
+    expect(encoded).toBeDefined()
+    expect(decodeShareHash(`#${SHARE_HASH_KEY}=${encoded}`).ok).toBe(true)
+  })
+
+  it('produces a clean share URL for every documented section anchor', () => {
+    const snapshot = makeSnapshot()
+    const anchors = ['#timeline', '#budget', '#photos', '#schedule', '#warranties', '#overview']
+    for (const anchor of anchors) {
+      const url = buildShareUrl(snapshot, {
+        href: `https://example.test/app${anchor}`,
+        hash: anchor,
+      })
+      expect(url, `anchor ${anchor} should not produce a double-hash URL`).not.toMatch(/#.*#/)
+      expect(url, `anchor ${anchor} should contain the share payload`).toMatch(/#share=/)
+    }
+  })
+
+  it('preserves unrelated hash params while stripping page anchors', () => {
+    const snapshot = makeSnapshot()
+    const url = buildShareUrl(snapshot, {
+      href: 'https://example.test/app#timeline&keep=1',
+      hash: '#timeline&keep=1',
+    })
+    expect(url).not.toMatch(/#.*#/)
+    // `keep=1` is a key=value param, so it survives the strip.
+    expect(url).toMatch(/#keep=1&share=/)
+  })
+
+  it('replaces an existing share hash without leaving a double hash', () => {
+    const snapshot = makeSnapshot()
+    const url = buildShareUrl(snapshot, {
+      href: `https://example.test/app#share=old_value&timeline`,
+      hash: '#share=old_value&timeline',
+    })
+    expect(url).not.toMatch(/#.*#/)
+    expect(url).not.toContain('old_value')
+    expect(url).toMatch(/#share=/)
   })
 })

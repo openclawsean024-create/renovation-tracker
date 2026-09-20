@@ -33,6 +33,17 @@ export const SHARE_SNAPSHOT_VERSION = 1
 /** The hash key that the Dashboard reads to enter readonly mode. */
 export const SHARE_HASH_KEY = 'share'
 
+/**
+ * Return true only when a hash contains the share payload key. Ordinary
+ * section anchors such as `#timeline` and `#budget` are page navigation, not
+ * share mode.
+ */
+export function hasShareHash(hash: string | undefined | null): boolean {
+  if (!hash) return false
+  const trimmed = hash.startsWith('#') ? hash.slice(1) : hash
+  return trimmed.split('&').some((part) => part.startsWith(`${SHARE_HASH_KEY}=`))
+}
+
 /** A public, read-only projection of a project. The snapshot deliberately
  *  replaces every originating `Stage.id` / `PhotoRecord.id` (which are
  *  IndexedDB keys) with snapshot-local references (`stage-1`, `stage-2`,
@@ -466,8 +477,11 @@ function stripShareHash(url: string): string {
   if (hashIdx === -1) return url
   const before = url.slice(0, hashIdx)
   const hash = url.slice(hashIdx + 1)
-  // Split into params so we can preserve any non-share fragments.
-  const params = hash.split('&').filter((p) => !p.startsWith(`${SHARE_HASH_KEY}=`))
+  // Preserve key/value hash params, but drop bare page anchors such as
+  // `#timeline`; a new share URL must have exactly one hash fragment.
+  const params = hash
+    .split('&')
+    .filter((p) => p.includes('=') && !p.startsWith(`${SHARE_HASH_KEY}=`))
   if (params.length === 0) return before
   return `${before}#${params.join('&')}`
 }

@@ -17,6 +17,7 @@ import * as dbModule from '../db'
 import { DashboardProvider } from '../store'
 import { Dashboard } from '../components/Dashboard'
 import { AppShell } from '../components/AppShell'
+import App from '../App'
 import {
   closeDb,
   getAllBudgets,
@@ -86,6 +87,7 @@ function renderAppShell() {
 
 afterEach(() => {
   cleanup()
+  document.body.classList.remove('readonly')
   // Reset hash so the next test does not inherit it.
   setHash('')
   // Restore any spies so each test starts with a clean slate.
@@ -281,6 +283,145 @@ describe('AC-FR004-02 + AC-FR004-03 readonly rendering + content', () => {
     expect(screen.queryByRole('button', { name: /^刪除階段 / })).not.toBeInTheDocument()
     // The status select must not be present.
     expect(screen.queryByLabelText('切換工程狀態')).not.toBeInTheDocument()
+
+    const timelineLink = screen.getByRole('link', { name: '階段與工期' })
+    const timelineHref = timelineLink.getAttribute('href')
+    expect(timelineHref).toMatch(/^#share=[^&]+&timeline$/)
+
+    // The section anchor must not discard the snapshot payload.
+    setHash(timelineHref!.slice(1))
+    act(() => window.dispatchEvent(new Event('hashchange')))
+    await waitFor(() => expect(screen.getByTestId('readonly-banner')).toBeInTheDocument())
+  })
+
+  it('keeps ordinary section anchors in editable mode', async () => {
+    setHash('timeline')
+
+    render(<App />)
+    await waitFor(() => expect(screen.getByTestId('project-name')).toBeInTheDocument())
+
+    expect(screen.queryByTestId('readonly-error')).not.toBeInTheDocument()
+    expect(document.body).not.toHaveClass('readonly')
+    expect(screen.getByRole('link', { name: '階段與工期' })).toHaveAttribute('href', '#timeline')
+  })
+
+  it('keeps every documented section anchor in editable mode', async () => {
+    const anchors = ['overview', 'timeline', 'budget', 'photos', 'warranties']
+    for (const anchor of anchors) {
+      cleanup()
+      setHash(anchor)
+      render(<App />)
+      await waitFor(() => expect(screen.getByTestId('project-name')).toBeInTheDocument())
+      expect(
+        screen.queryByTestId('readonly-error'),
+        `anchor ${anchor} must not trigger share-error mode`,
+      ).not.toBeInTheDocument()
+      expect(
+        document.body.classList.contains('readonly'),
+        `anchor ${anchor} must not add the readonly body class`,
+      ).toBe(false)
+    }
+  })
+
+  it('preserves the share payload on every readonly nav link', async () => {
+    const snapshot = buildShareSnapshot({
+      project: seedProject,
+      stages: [
+        {
+          id: 'stage-1',
+          name: '拆除',
+          order: 1,
+          status: 'completed',
+          plannedStart: '2026-01-05',
+          plannedEnd: '2026-01-09',
+        },
+      ],
+      stageSummary: { total: 1, completed: 1, inProgress: 0, blocked: 0, notStarted: 0, percentComplete: 100 },
+      gantt: {
+        totalDays: 33,
+        days: [],
+        rows: [
+          { stageId: 'stage-1', name: '拆除', startIndex: 0, endIndex: 4, span: 5, withinWindow: true },
+        ],
+      },
+      photos: [],
+      budgetSummary: {
+        total: 0, totalPlanned: 0, totalActual: 0, remaining: 0,
+        isOverrun: false, totalOverrun: 0, overrunItemCount: 0,
+        paymentCounts: { unpaid: 0, partial: 0, paid: 0 },
+      },
+    })
+    setValidShareHash(snapshot)
+
+    renderAppShell()
+    await waitFor(() => expect(screen.getByTestId('readonly-banner')).toBeInTheDocument())
+
+    // Every nav link must start with `#share=...&<anchor>` so the snapshot
+    // payload survives navigation between sections.
+    const linkLabels = ['總覽', '階段與工期', '預算', '現場照片', '保固']
+    const expectedAnchors = ['overview', 'timeline', 'budget', 'photos', 'warranties']
+    for (let i = 0; i < linkLabels.length; i += 1) {
+      const link = screen.getByRole('link', { name: linkLabels[i]! })
+      const href = link.getAttribute('href') ?? ''
+      expect(
+        href,
+        `${linkLabels[i]} link must start with #share= and end with &${expectedAnchors[i]}`,
+      ).toMatch(new RegExp(`^#share=[^&]+&${expectedAnchors[i]}$`))
+    }
+  })
+
+  it('stays in readonly mode when the hash already has a section anchor appended', async () => {
+    const snapshot = buildShareSnapshot({
+      project: seedProject,
+      stages: [
+        {
+          id: 'stage-1',
+          name: '拆除',
+          order: 1,
+          status: 'completed',
+          plannedStart: '2026-01-05',
+          plannedEnd: '2026-01-09',
+        },
+      ],
+      stageSummary: { total: 1, completed: 1, inProgress: 0, blocked: 0, notStarted: 0, percentComplete: 100 },
+      gantt: {
+        totalDays: 33,
+        days: [],
+        rows: [
+          { stageId: 'stage-1', name: '拆除', startIndex: 0, endIndex: 4, span: 5, withinWindow: true },
+        ],
+      },
+      photos: [],
+      budgetSummary: {
+        total: 0, totalPlanned: 0, totalActual: 0, remaining: 0,
+        isOverrun: false, totalOverrun: 0, overrunItemCount: 0,
+        paymentCounts: { unpaid: 0, partial: 0, paid: 0 },
+      },
+    })
+    // Open the URL with the share payload AND a section anchor already
+    // appended — e.g. the user followed a nav link from another readonly
+    // session.
+    const encoded = encodeShareSnapshot(snapshot)
+    setHash(`${SHARE_HASH_KEY}=${encoded}&budget`)
+
+    renderAppShell()
+    await waitFor(() => expect(screen.getByTestId('readonly-banner')).toBeInTheDocument())
+    // No share-error state.
+    expect(screen.queryByTestId('readonly-error')).not.toBeInTheDocument()
+    // Body must carry the readonly class so CSS-driven hiding still works.
+    expect(document.body).toHaveClass('readonly')
+  })
+
+  it('malformed share hashes still show the friendly error, not the editable dashboard', async () => {
+    // A hash with `share=` but a garbage payload must NOT be treated as a
+    // section anchor — it must still produce the share-error state.
+    setHash(`${SHARE_HASH_KEY}=@@@@@@`)
+
+    renderAppShell()
+    await waitFor(() => expect(screen.getByTestId('readonly-error')).toBeInTheDocument())
+    expect(screen.queryByTestId('project-name')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('readonly-banner')).not.toBeInTheDocument()
+    expect(document.body).toHaveClass('readonly')
   })
 
   it('does NOT load or write IndexedDB while in readonly mode (AC-FR004-02)', async () => {

@@ -29,6 +29,7 @@ import { ReadOnlyView } from './ReadOnlyView'
 import { ReadOnlyError } from './ReadOnlyError'
 import {
   decodeShareHash,
+  hasShareHash,
   type ShareDecodeError,
   type ShareSnapshot,
 } from '../share'
@@ -48,7 +49,7 @@ export type AppMode =
 function readModeFromLocation(): AppMode {
   if (typeof window === 'undefined') return { kind: 'editable' }
   const raw = window.location.hash
-  if (!raw) return { kind: 'editable' }
+  if (!hasShareHash(raw)) return { kind: 'editable' }
   const result = decodeShareHash(raw)
   if (result.ok) return { kind: 'share', snapshot: result.snapshot }
   return { kind: 'share-error', error: result.error }
@@ -90,6 +91,17 @@ export function AppShell({ initialMode }: AppShellProps = {}) {
     window.addEventListener('hashchange', onHashChange)
     return () => window.removeEventListener('hashchange', onHashChange)
   }, [initialMode, onHashChange])
+
+  // Mirror the mode into `body.readonly` so CSS-driven hiding works whether
+  // or not the caller mounted <App /> around this component. The check uses
+  // `hasShareHash` (not a raw hash-length test) so that ordinary section
+  // anchors such as `#timeline` and `#budget` never flip the body into
+  // readonly styling.
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    const isShare = mode.kind === 'share' || mode.kind === 'share-error'
+    document.body.classList.toggle('readonly', isShare)
+  }, [mode])
 
   if (mode.kind === 'share') {
     return <ReadOnlyView snapshot={mode.snapshot} sourceUrl={currentShareUrl()} />

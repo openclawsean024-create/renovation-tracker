@@ -8,7 +8,7 @@
 import { useMemo } from 'react'
 import { displayDate, monthSpans } from '../dates'
 import { dayGridTemplate } from '../gantt'
-import type { ShareSnapshot, ShareWarranty } from '../share'
+import { SHARE_HASH_KEY, type ShareSnapshot, type ShareWarranty } from '../share'
 import {
   PHOTO_KIND_LABELS,
   PROJECT_STATUS_LABELS,
@@ -39,6 +39,16 @@ const STATUS_SYMBOL: Record<StageStatus, string> = {
   in_progress: '◐',
   completed: '●',
   blocked: '⚠',
+}
+
+function readonlyNavHref(anchor: string, sourceUrl: string): string {
+  const hashIndex = sourceUrl.indexOf('#')
+  if (hashIndex === -1) return `#${anchor}`
+  const sharePart = sourceUrl
+    .slice(hashIndex + 1)
+    .split('&')
+    .find((part) => part.startsWith(`${SHARE_HASH_KEY}=`))
+  return sharePart ? `#${sharePart}&${anchor}` : `#${anchor}`
 }
 
 export function ReadOnlyView({ snapshot, sourceUrl }: ReadOnlyViewProps) {
@@ -114,7 +124,7 @@ export function ReadOnlyView({ snapshot, sourceUrl }: ReadOnlyViewProps) {
           </div>
           <nav className="nav-row" aria-label="工程導覽（唯讀）">
             {NAV_LINKS.map((n) => (
-              <a key={n.id} className="nav-link" href={`#${n.id}`}>{n.label}</a>
+              <a key={n.id} className="nav-link" href={readonlyNavHref(n.id, sourceUrl)}>{n.label}</a>
             ))}
           </nav>
         </div>
