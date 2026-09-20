@@ -60,21 +60,12 @@ export function BudgetForm({
   const titleId = `${formId}-title`
   const errorRegionId = `${formId}-errors`
 
-  // Sync local state whenever the modal is (re)opened.
   useEffect(() => {
     if (!open) return
     setName(initialBudget?.name ?? '')
     setCategory(initialBudget?.category ?? defaultCategory ?? '')
-    setPlannedRaw(
-      initialBudget
-        ? String(initialBudget.plannedAmount)
-        : '',
-    )
-    setActualRaw(
-      initialBudget
-        ? String(initialBudget.actualAmount)
-        : '',
-    )
+    setPlannedRaw(initialBudget ? String(initialBudget.plannedAmount) : '')
+    setActualRaw(initialBudget ? String(initialBudget.actualAmount) : '')
     setPaymentStatus(initialBudget?.paymentStatus ?? 'unpaid')
     setNote(initialBudget?.note ?? '')
     setErrors([])
@@ -94,8 +85,6 @@ export function BudgetForm({
       paymentStatus,
       note,
     }
-    // Validate locally so field errors render immediately (FR-003 AC-FR003-02).
-    // The store re-runs the same validator as defense in depth.
     const result = validateBudgetInput(patch)
     if (!result.ok) {
       setErrors(result.errors)
@@ -125,136 +114,133 @@ export function BudgetForm({
       labelledById={titleId}
     >
       <form onSubmit={handleSubmit} noValidate aria-describedby={errorRegionId}>
-        <div className="field">
-          <label htmlFor={`${formId}-category`}>分類</label>
-          <input
-            id={`${formId}-category`}
-            data-testid="budget-category-input"
-            name="category"
-            type="text"
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            aria-invalid={Boolean(errorFor(errors, 'category'))}
-            required
-          />
-          {errorFor(errors, 'category') && (
-            <span className="error" role="alert" data-testid="budget-category-error">
-              {errorFor(errors, 'category')}
-            </span>
-          )}
-        </div>
+        <div className="form-grid">
+          <div className="field">
+            <label htmlFor={`${formId}-category`}>分類</label>
+            <input
+              id={`${formId}-category`}
+              data-testid="budget-category-input"
+              name="category"
+              type="text"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              aria-invalid={Boolean(errorFor(errors, 'category'))}
+              required
+            />
+            {errorFor(errors, 'category') && (
+              <span className="error" role="alert" data-testid="budget-category-error">
+                {errorFor(errors, 'category')}
+              </span>
+            )}
+          </div>
 
-        <div className="field">
-          <label htmlFor={`${formId}-name`}>名稱</label>
-          <input
-            id={`${formId}-name`}
-            data-testid="budget-name-input"
-            name="name"
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            aria-invalid={Boolean(errorFor(errors, 'name'))}
-            required
-          />
-          {errorFor(errors, 'name') && (
-            <span className="error" role="alert" data-testid="budget-name-error">
-              {errorFor(errors, 'name')}
-            </span>
-          )}
-        </div>
+          <div className="field">
+            <label htmlFor={`${formId}-name`}>名稱</label>
+            <input
+              id={`${formId}-name`}
+              data-testid="budget-name-input"
+              name="name"
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              aria-invalid={Boolean(errorFor(errors, 'name'))}
+              required
+            />
+            {errorFor(errors, 'name') && (
+              <span className="error" role="alert" data-testid="budget-name-error">
+                {errorFor(errors, 'name')}
+              </span>
+            )}
+          </div>
 
-        <div className="field">
-          <label htmlFor={`${formId}-planned`}>預算金額</label>
-          <input
-            id={`${formId}-planned`}
-            data-testid="budget-planned-input"
-            name="plannedAmount"
-            type="number"
-            inputMode="decimal"
-            min="0"
-            step="0.01"
-            value={plannedRaw}
-            onChange={(e) => setPlannedRaw(e.target.value)}
-            aria-invalid={Boolean(errorFor(errors, 'plannedAmount'))}
-            required
-          />
-          {errorFor(errors, 'plannedAmount') && (
-            <span className="error" role="alert" data-testid="budget-planned-error">
-              {errorFor(errors, 'plannedAmount')}
-            </span>
-          )}
-        </div>
+          <div className="field">
+            <label htmlFor={`${formId}-planned`}>預算金額</label>
+            <input
+              id={`${formId}-planned`}
+              data-testid="budget-planned-input"
+              name="plannedAmount"
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="0.01"
+              value={plannedRaw}
+              onChange={(e) => setPlannedRaw(e.target.value)}
+              aria-invalid={Boolean(errorFor(errors, 'plannedAmount'))}
+              required
+            />
+            {errorFor(errors, 'plannedAmount') && (
+              <span className="error" role="alert" data-testid="budget-planned-error">
+                {errorFor(errors, 'plannedAmount')}
+              </span>
+            )}
+          </div>
 
-        <div className="field">
-          <label htmlFor={`${formId}-actual`}>實際金額</label>
-          <input
-            id={`${formId}-actual`}
-            data-testid="budget-actual-input"
-            name="actualAmount"
-            type="number"
-            inputMode="decimal"
-            min="0"
-            step="0.01"
-            value={actualRaw}
-            onChange={(e) => setActualRaw(e.target.value)}
-            aria-invalid={Boolean(errorFor(errors, 'actualAmount'))}
-            required
-          />
-          {errorFor(errors, 'actualAmount') && (
-            <span className="error" role="alert" data-testid="budget-actual-error">
-              {errorFor(errors, 'actualAmount')}
-            </span>
-          )}
-        </div>
+          <div className="field">
+            <label htmlFor={`${formId}-actual`}>實際金額</label>
+            <input
+              id={`${formId}-actual`}
+              data-testid="budget-actual-input"
+              name="actualAmount"
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="0.01"
+              value={actualRaw}
+              onChange={(e) => setActualRaw(e.target.value)}
+              aria-invalid={Boolean(errorFor(errors, 'actualAmount'))}
+              required
+            />
+            {errorFor(errors, 'actualAmount') && (
+              <span className="error" role="alert" data-testid="budget-actual-error">
+                {errorFor(errors, 'actualAmount')}
+              </span>
+            )}
+          </div>
 
-        <div className="field">
-          <label htmlFor={`${formId}-payment`}>付款狀態</label>
-          <select
-            id={`${formId}-payment`}
-            data-testid="budget-payment-select"
-            name="paymentStatus"
-            value={paymentStatus}
-            onChange={(e) => setPaymentStatus(e.target.value as PaymentStatus)}
-          >
-            {PAYMENT_STATUSES.map((p) => (
-              <option key={p} value={p}>
-                {PAYMENT_STATUS_LABELS[p]}（{PAYMENT_LABEL_FOR_HELP[p]}）
-              </option>
-            ))}
-          </select>
-          {errorFor(errors, 'paymentStatus') && (
-            <span className="error" role="alert" data-testid="budget-payment-error">
-              {errorFor(errors, 'paymentStatus')}
-            </span>
-          )}
-        </div>
+          <div className="field">
+            <label htmlFor={`${formId}-payment`}>付款狀態</label>
+            <select
+              id={`${formId}-payment`}
+              data-testid="budget-payment-select"
+              name="paymentStatus"
+              value={paymentStatus}
+              onChange={(e) => setPaymentStatus(e.target.value as PaymentStatus)}
+            >
+              {PAYMENT_STATUSES.map((p) => (
+                <option key={p} value={p}>
+                  {PAYMENT_STATUS_LABELS[p]}（{PAYMENT_LABEL_FOR_HELP[p]}）
+                </option>
+              ))}
+            </select>
+            {errorFor(errors, 'paymentStatus') && (
+              <span className="error" role="alert" data-testid="budget-payment-error">
+                {errorFor(errors, 'paymentStatus')}
+              </span>
+            )}
+          </div>
 
-        <div className="field">
-          <label htmlFor={`${formId}-note`}>備註（選填）</label>
-          <textarea
-            id={`${formId}-note`}
-            data-testid="budget-note-input"
-            name="note"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-          />
+          <div className="field full">
+            <label htmlFor={`${formId}-note`}>備註（選填）</label>
+            <textarea
+              id={`${formId}-note`}
+              data-testid="budget-note-input"
+              name="note"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+            />
+          </div>
         </div>
 
         <div id={errorRegionId} aria-live="polite">
           {errors.length > 0 && (
-            <p className="error" role="alert" data-testid="budget-form-error">
+            <div className="form-feedback" role="alert" data-testid="budget-form-error">
               {errors.map((e) => e.message).join('；')}
-            </p>
+            </div>
           )}
         </div>
 
         <div className="form-actions">
-          <button
-            type="button"
-            className="btn"
-            onClick={onCancel}
-            disabled={submitting}
-          >
+          <button type="button" className="btn" onClick={onCancel} disabled={submitting}>
             取消
           </button>
           <button

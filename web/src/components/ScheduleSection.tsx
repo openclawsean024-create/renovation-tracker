@@ -214,7 +214,7 @@ export function ScheduleSection({ stages }: ScheduleSectionProps) {
   const completedCount = schedules.filter((s) => s.completed).length
 
   return (
-    <section className="section schedule-section" aria-labelledby={headingId}>
+    <article className="support-section schedule-section" aria-labelledby={headingId}>
       <header className="schedule-section-header">
         <h2 id={headingId}>師傅排程</h2>
         <button
@@ -335,6 +335,6 @@ export function ScheduleSection({ stages }: ScheduleSectionProps) {
         onCancel={() => setPendingDeleteId(null)}
         onConfirm={confirmDelete}
       />
-    </section>
+    </article>
   )
 }

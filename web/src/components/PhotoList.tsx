@@ -76,7 +76,7 @@ export function PhotoList({ photos, stages, onDelete }: PhotoListProps) {
       </div>
 
       {visible.length === 0 ? (
-        <p className="muted" data-testid="photo-filter-empty" style={{ color: 'var(--color-muted)' }}>
+        <p className="muted photo-filter-empty" data-testid="photo-filter-empty">
           這個分類目前沒有照片。
         </p>
       ) : (

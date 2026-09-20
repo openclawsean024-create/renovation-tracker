@@ -1,5 +1,9 @@
 // FR-004 readonly view — renders a snapshot produced by `share.ts` without
 // any editing controls. SPEC §9 + AC-FR004-02 / AC-FR004-03.
+//
+// Rewritten to mirror the new Dashboard shell / hero / summary / section
+// pattern. Preserves every data-testid and ARIA label referenced by the
+// share test suite.
 
 import { useMemo } from 'react'
 import { displayDate, monthSpans } from '../dates'
@@ -12,6 +16,7 @@ import {
   WARRANTY_DATE_STATUS_LABELS,
   type Project,
   type Stage,
+  type StageStatus,
 } from '../types'
 import { formatBudgetAmount, formatSignedAmount } from '../budget'
 
@@ -21,14 +26,22 @@ export interface ReadOnlyViewProps {
   sourceUrl: string
 }
 
+const NAV_LINKS = [
+  { id: 'overview', label: '總覽' },
+  { id: 'timeline', label: '階段與工期' },
+  { id: 'budget', label: '預算' },
+  { id: 'photos', label: '現場照片' },
+  { id: 'warranties', label: '保固' },
+] as const
+
+const STATUS_SYMBOL: Record<StageStatus, string> = {
+  not_started: '○',
+  in_progress: '◐',
+  completed: '●',
+  blocked: '⚠',
+}
+
 export function ReadOnlyView({ snapshot, sourceUrl }: ReadOnlyViewProps) {
-  // The readonly view is purely a renderer for an immutable share snapshot.
-  // Every `id` field that reaches this component is a SNAPSHOT-LOCAL
-  // reference (e.g. `stage-1`, `photo-1`) — never the originating
-  // IndexedDB key. SPEC §9.1 forbids exposing IndexedDB keys through the
-  // share URL, so we must never reference a real `Project.id` /
-  // `Stage.id` / `PhotoRecord.id` here. We synthesise dummy values that
-  // satisfy the type contract but carry no source provenance.
   const projectForGantt: Project = useMemo(
     () => ({
       id: 'snapshot-project',
@@ -46,10 +59,6 @@ export function ReadOnlyView({ snapshot, sourceUrl }: ReadOnlyViewProps) {
   )
   const stagesForGantt: Stage[] = useMemo(
     () =>
-      // `s.id` here is the snapshot-local stage ref (`stage-N`), already
-      // assigned by `buildShareSnapshot`. We deliberately do not substitute
-      // any other id — the gantt row matcher relies on the row.stageId
-      // (also a snapshot-local ref) to find the matching stage.
       snapshot.stages.map((s) => ({
         id: s.id,
         projectId: 'snapshot-project',
@@ -67,78 +76,159 @@ export function ReadOnlyView({ snapshot, sourceUrl }: ReadOnlyViewProps) {
     [snapshot],
   )
 
-  // Warranty list rendered in the readonly section. The items are taken
-  // verbatim from the snapshot (already mapped to snapshot-local refs and
-  // frozen against the generation day), so we never recompute status here.
   const warranties: ShareWarranty[] = snapshot.warranties ?? []
+  const percent = snapshot.stageSummary.percentComplete
 
   return (
     <>
+      <a className="skip" href="#main">跳至主要內容</a>
       <header className="app-header">
-        <h1>裝修進度神器</h1>
-        <div className="project-meta">
-          <span className="project-name" data-testid="readonly-project-name">
-            {snapshot.project.name}
-          </span>
-          <span
-            className="status-pill"
-            data-tone={snapshot.project.status}
-            aria-label={`工程狀態：${PROJECT_STATUS_LABELS[snapshot.project.status]}`}
-          >
-            <span className="symbol" aria-hidden="true">
-              {snapshot.project.status === 'completed' ? '●'
-                : snapshot.project.status === 'in_progress' ? '◐' : '○'}
+        <div className="wrap">
+          <div className="brand-row">
+            <span className="brand" aria-label="裝修進度神器 唯讀快照">
+              <span className="brand-mark" aria-hidden="true">
+                <svg className="icon" viewBox="0 0 28 28" aria-hidden="true">
+                  <path d="M5 23V5h10v7H5m10 0 8 11M15 5h8v7h-8M5 23h7v-7H5" />
+                </svg>
+              </span>
+              <span className="wordmark">
+                裝修進度神器
+                <small>RENOVATION TRACKER</small>
+              </span>
             </span>
-            <span>{PROJECT_STATUS_LABELS[snapshot.project.status]}</span>
-          </span>
-          <span>
-            {displayDate(snapshot.project.plannedStart)} ~ {displayDate(snapshot.project.plannedEnd)}
-          </span>
-          <span className="readonly-snapshot-meta" data-testid="readonly-generated-at">
-            快照產生時間：{formatGeneratedAt(snapshot.generatedAt)}
-          </span>
+            <div className="header-note">
+              <span
+                className="status-pill"
+                data-tone={snapshot.project.status}
+                aria-label={`工程狀態：${PROJECT_STATUS_LABELS[snapshot.project.status]}`}
+              >
+                <span className="symbol" aria-hidden="true">
+                  {snapshot.project.status === 'completed' ? '●'
+                    : snapshot.project.status === 'in_progress' ? '◐' : '○'}
+                </span>
+                <span>{PROJECT_STATUS_LABELS[snapshot.project.status]}</span>
+              </span>
+              <span aria-hidden="true">·</span>
+              <span>{displayDate(snapshot.project.plannedStart)} ~ {displayDate(snapshot.project.plannedEnd)}</span>
+            </div>
+          </div>
+          <nav className="nav-row" aria-label="工程導覽（唯讀）">
+            {NAV_LINKS.map((n) => (
+              <a key={n.id} className="nav-link" href={`#${n.id}`}>{n.label}</a>
+            ))}
+          </nav>
         </div>
       </header>
 
-      <main className="app-main">
-        <ReadOnlyBanner sourceUrl={sourceUrl} />
+      <main className="app-main wrap" id="main">
+        <section id="overview" aria-labelledby="readonly-title">
+          <ReadOnlyBanner sourceUrl={sourceUrl} />
 
-        <section className="section" aria-labelledby="readonly-summary-heading">
-          <h2 id="readonly-summary-heading">工程摘要</h2>
-          <div className="summary-grid">
-            <div className="summary-cell">
-              <span className="label">日期範圍</span>
-              <span className="value">
-                {displayDate(snapshot.project.plannedStart)} ~ {displayDate(snapshot.project.plannedEnd)}
-              </span>
-            </div>
-            <div className="summary-cell">
-              <span className="label">階段總數</span>
-              <span className="value" data-testid="readonly-total-stages">{snapshot.stageSummary.total}</span>
-            </div>
-            <div className="summary-cell">
-              <span className="label">已完成</span>
-              <span className="value" data-testid="readonly-completed-stages">{snapshot.stageSummary.completed}</span>
-            </div>
-            <div className="summary-cell">
-              <span className="label">進行中</span>
-              <span className="value">{snapshot.stageSummary.inProgress}</span>
-            </div>
-            <div className="summary-cell">
-              <span className="label">阻塞</span>
-              <span className="value">{snapshot.stageSummary.blocked}</span>
-            </div>
-            <div className="summary-cell">
-              <span className="label">完成百分比</span>
-              <span className="value" data-testid="readonly-percent-complete">{snapshot.stageSummary.percentComplete}%</span>
+          <div className="hero">
+            <div className="project-intro">
+              <div>
+                <p className="eyebrow">唯讀工程總覽</p>
+                <div className="project-title-row">
+                  <h1 id="readonly-title">
+                    <span className="project-name" data-testid="readonly-project-name">
+                      {snapshot.project.name}
+                    </span>
+                  </h1>
+                </div>
+                <p className="muted">
+                  {snapshot.stages.length === 0
+                    ? '此快照不含任何階段資料。'
+                    : `${snapshot.stages.length} 個階段已排定，${
+                        snapshot.stageSummary.completed > 0
+                          ? `已完成 ${snapshot.stageSummary.completed} 個。`
+                          : '尚未有施工進度紀錄。'
+                      }`}
+                </p>
+              </div>
+              <div className="intro-bottom">
+                <div className="project-dates">
+                  <small>預計施工期間</small>
+                  <p className="numeric">
+                    <time dateTime={snapshot.project.plannedStart}>{displayDate(snapshot.project.plannedStart)}</time>
+                    <span className="date-arrow" aria-hidden="true">→</span>
+                    <time dateTime={snapshot.project.plannedEnd}>{displayDate(snapshot.project.plannedEnd)}</time>
+                  </p>
+                </div>
+                <span className="readonly-snapshot-meta" data-testid="readonly-generated-at">
+                  快照產生時間：{formatGeneratedAt(snapshot.generatedAt)}
+                </span>
+              </div>
             </div>
           </div>
+
+          <dl className="summary" aria-label="工程摘要">
+            <div className="metric completion">
+              <dt>工程完成度</dt>
+              <dd>
+                <span data-testid="readonly-percent-complete">{percent}%</span>
+              </dd>
+              <div
+                className="progress"
+                role="progressbar"
+                aria-label={`工程完成度，${percent}%`}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={percent}
+              >
+                {Array.from({ length: 10 }).map((_, i) => (
+                  <span key={i} aria-hidden="true" />
+                ))}
+              </div>
+            </div>
+            <div className="metric">
+              <dt>階段總數</dt>
+              <dd>
+                <span data-testid="readonly-total-stages">{snapshot.stageSummary.total}</span>
+                <small>個</small>
+              </dd>
+            </div>
+            <div className="metric">
+              <dt>已完成</dt>
+              <dd>
+                <span data-testid="readonly-completed-stages">{snapshot.stageSummary.completed}</span>
+                <small>個</small>
+              </dd>
+            </div>
+            <div className="metric">
+              <dt>進行中</dt>
+              <dd>{snapshot.stageSummary.inProgress}<small>個</small></dd>
+            </div>
+            <div className="metric">
+              <dt>阻塞</dt>
+              <dd>{snapshot.stageSummary.blocked}<small>個</small></dd>
+            </div>
+            <div className="metric dates">
+              <dt>計畫日期</dt>
+              <dd>
+                <span>
+                  <small>開始</small>
+                  <time dateTime={snapshot.project.plannedStart}>{displayDate(snapshot.project.plannedStart)}</time>
+                </span>
+                <span>
+                  <small>完成</small>
+                  <time dateTime={snapshot.project.plannedEnd}>{displayDate(snapshot.project.plannedEnd)}</time>
+                </span>
+              </dd>
+            </div>
+          </dl>
         </section>
 
-        <section className="section" aria-labelledby="readonly-stage-heading">
-          <h2 id="readonly-stage-heading">階段清單</h2>
+        <section className="section" id="timeline" aria-labelledby="readonly-stage-heading">
+          <header className="section-header">
+            <div className="section-heading">
+              <h2 id="readonly-stage-heading">階段清單</h2>
+              <span className="section-count">{snapshot.stages.length} 個階段</span>
+            </div>
+          </header>
           {snapshot.stages.length === 0 ? (
-            <p data-testid="readonly-empty-stages">此快照沒有階段資料。</p>
+            <div className="empty-state">
+              <p data-testid="readonly-empty-stages">此快照沒有階段資料。</p>
+            </div>
           ) : (
             <ol className="stage-list">
               {snapshot.stages.map((stage) => (
@@ -147,24 +237,22 @@ export function ReadOnlyView({ snapshot, sourceUrl }: ReadOnlyViewProps) {
                   className="stage-row"
                   data-testid={`readonly-stage-row-${stage.id}`}
                 >
-                  <div>
-                    <p className="stage-name">{stage.name}</p>
-                    <div className="stage-meta">
-                      <span className="status-pill" data-tone={stage.status}>
-                        <span className="symbol" aria-hidden="true">
-                          {stage.status === 'completed' ? '●'
-                            : stage.status === 'in_progress' ? '◐'
-                            : stage.status === 'blocked' ? '⚠' : '○'}
-                        </span>
-                        <span>{STAGE_STATUS_LABELS[stage.status]}</span>
-                      </span>
-                      <span>
-                        計畫：{displayDate(stage.plannedStart)} ~ {displayDate(stage.plannedEnd)}
-                      </span>
-                      {stage.actualStart && <span>實際開始：{displayDate(stage.actualStart)}</span>}
-                      {stage.actualEnd && <span>實際完成：{displayDate(stage.actualEnd)}</span>}
-                      {stage.note && <span>備註：{stage.note}</span>}
-                    </div>
+                  <span className="stage-name">{stage.name}</span>
+                  <div className="stage-meta">
+                    <span
+                      className="status-pill"
+                      data-tone={stage.status}
+                      aria-label={`階段狀態：${STAGE_STATUS_LABELS[stage.status]}`}
+                    >
+                      <span className="symbol" aria-hidden="true">{STATUS_SYMBOL[stage.status]}</span>
+                      <span>{STAGE_STATUS_LABELS[stage.status]}</span>
+                    </span>
+                    <span className="stage-period">
+                      計畫：{displayDate(stage.plannedStart)} ~ {displayDate(stage.plannedEnd)}
+                    </span>
+                    {stage.actualStart && <span>實際開始：{displayDate(stage.actualStart)}</span>}
+                    {stage.actualEnd && <span>實際完成：{displayDate(stage.actualEnd)}</span>}
+                    {stage.note && <span>備註：{stage.note}</span>}
                   </div>
                 </li>
               ))}
@@ -172,15 +260,29 @@ export function ReadOnlyView({ snapshot, sourceUrl }: ReadOnlyViewProps) {
           )}
         </section>
 
-        <ReadOnlyGantt project={projectForGantt} stages={stagesForGantt} />
+        <section className="section" aria-labelledby="readonly-gantt-heading">
+          <header className="section-header">
+            <div className="section-heading">
+              <h2 id="readonly-gantt-heading">工期圖</h2>
+            </div>
+          </header>
+          <ReadOnlyGantt project={projectForGantt} stages={stagesForGantt} />
+        </section>
 
-        <section className="section" aria-labelledby="readonly-photo-heading">
-          <h2 id="readonly-photo-heading">照片紀錄</h2>
+        <section className="section" id="photos" aria-labelledby="readonly-photo-heading">
+          <header className="section-header">
+            <div className="section-heading">
+              <h2 id="readonly-photo-heading">照片紀錄</h2>
+              <span className="section-count">{snapshot.photos.length} 張快照</span>
+            </div>
+          </header>
           <p className="readonly-section-note">
             快照只包含照片分類、日期與說明，不含原圖檔。
           </p>
           {snapshot.photos.length === 0 ? (
-            <p data-testid="readonly-photo-empty">此快照沒有照片資料。</p>
+            <div className="empty-state">
+              <p data-testid="readonly-photo-empty">此快照沒有照片資料。</p>
+            </div>
           ) : (
             <ul className="readonly-photo-list" data-testid="readonly-photo-list">
               {snapshot.photos.map((photo) => (
@@ -205,8 +307,12 @@ export function ReadOnlyView({ snapshot, sourceUrl }: ReadOnlyViewProps) {
           )}
         </section>
 
-        <section className="section" aria-labelledby="readonly-budget-heading">
-          <h2 id="readonly-budget-heading">預算摘要</h2>
+        <section className="section" id="budget" aria-labelledby="readonly-budget-heading">
+          <header className="section-header">
+            <div className="section-heading">
+              <h2 id="readonly-budget-heading">預算摘要</h2>
+            </div>
+          </header>
           <div className="budget-summary" data-testid="readonly-budget-summary">
             <div className="budget-summary-cell">
               <span className="label">總預算</span>
@@ -252,31 +358,13 @@ export function ReadOnlyView({ snapshot, sourceUrl }: ReadOnlyViewProps) {
           </div>
         </section>
 
-        <section className="section" aria-labelledby="readonly-schedule-heading">
-          <h2 id="readonly-schedule-heading">排程摘要</h2>
-          <p className="readonly-summary-line" data-testid="readonly-schedule-summary">
-            <strong>共 {snapshot.scheduleSummary.total} 筆</strong>
-            {snapshot.scheduleSummary.total > 0 && (
-              <>
-                {' '}· 未開始／進行中 {snapshot.scheduleSummary.upcoming} ·
-                逾期 {snapshot.scheduleSummary.overdue} ·
-                已完成 {snapshot.scheduleSummary.completed}
-              </>
-            )}
-          </p>
-          {snapshot.scheduleSummary.total === 0 ? (
-            <p data-testid="readonly-schedule-empty">目前沒有排程資料。</p>
-          ) : (
-            <ul className="readonly-schedule-list" data-testid="readonly-schedule-list">
-              <li className="readonly-schedule-list-note">
-                排程明細因 FR-005 仍以本機為準，未包含於分享快照中；如需查看請回到原工程查看。
-              </li>
-            </ul>
-          )}
-        </section>
-
-        <section className="section" aria-labelledby="readonly-warranty-heading">
-          <h2 id="readonly-warranty-heading">保固摘要</h2>
+        <section className="section" id="warranties" aria-labelledby="readonly-warranty-heading">
+          <header className="section-header">
+            <div className="section-heading">
+              <h2 id="readonly-warranty-heading">保固摘要</h2>
+              <span className="section-count">{warranties.length} 筆保固</span>
+            </div>
+          </header>
           <p className="readonly-summary-line" data-testid="readonly-warranty-summary">
             <strong>共 {snapshot.warrantySummary.total} 筆</strong>
             {snapshot.warrantySummary.total > 0 && (
@@ -288,7 +376,9 @@ export function ReadOnlyView({ snapshot, sourceUrl }: ReadOnlyViewProps) {
             )}
           </p>
           {warranties.length === 0 ? (
-            <p data-testid="readonly-warranty-empty">目前沒有保固資料。</p>
+            <div className="empty-state">
+              <p data-testid="readonly-warranty-empty">目前沒有保固資料。</p>
+            </div>
           ) : (
             <ul className="readonly-warranty-list" data-testid="readonly-warranty-list">
               {warranties.map((w) => (
@@ -324,6 +414,11 @@ export function ReadOnlyView({ snapshot, sourceUrl }: ReadOnlyViewProps) {
             </ul>
           )}
         </section>
+
+        <footer>
+          <span className="footer-wordmark">裝修進度神器</span>
+          <span>唯讀分享模式 · 資料不會自動更新</span>
+        </footer>
       </main>
     </>
   )
@@ -337,31 +432,21 @@ function ReadOnlyBanner({ sourceUrl }: { sourceUrl: string }) {
       aria-live="polite"
       data-testid="readonly-banner"
     >
-      <p className="readonly-banner-title">
-        <span aria-hidden="true">🔒</span> 唯讀分享模式
-      </p>
-      <p className="readonly-banner-body">
-        這是「{sourceUrl.length > 0 ? '分享連結' : 'URL 分享連結'}」產生的唯讀快照，
-        不可新增、編輯或刪除資料，也不會寫入本機 IndexedDB。
-      </p>
-      <p className="readonly-banner-source" data-testid="readonly-source-url">{sourceUrl}</p>
+      <div>
+        <p className="readonly-banner-title">
+          <span aria-hidden="true">🔒</span> 唯讀分享模式
+        </p>
+        <p className="readonly-banner-body">
+          這是「{sourceUrl.length > 0 ? '分享連結' : 'URL 分享連結'}」產生的唯讀快照，
+          不可新增、編輯或刪除資料，也不會寫入本機 IndexedDB。
+        </p>
+        <p className="readonly-banner-source" data-testid="readonly-source-url">{sourceUrl}</p>
+      </div>
     </section>
   )
 }
 
 function ReadOnlyGantt({ project, stages }: { project: Project; stages: Stage[] }) {
-  const layout = useMemo(() => {
-    // Reuse the production layout helper but without importing layoutGantt to
-    // avoid pulling the whole gantt module into the readonly tree (it isn't
-    // strictly necessary — we just need the layout grid).
-    void project
-    void stages
-    return null
-  }, [project, stages])
-
-  // We re-implement the gantt layout directly to keep the readonly view
-  // self-contained — it shares the exact same visual contract as
-  // `GanttChart` (SPEC §5.4) but does not touch the production component.
   const ganttLayout = useMemo(() => {
     const days: string[] = []
     const cur = new Date(
@@ -399,7 +484,6 @@ function ReadOnlyGantt({ project, stages }: { project: Project; stages: Stage[] 
     })
     return { days, rows, totalDays: days.length }
   }, [project.plannedStart, project.plannedEnd, stages])
-  void layout
 
   const months = useMemo(() => monthSpans(ganttLayout.days), [ganttLayout.days])
   const gridTemplate = useMemo(
@@ -408,21 +492,12 @@ function ReadOnlyGantt({ project, stages }: { project: Project; stages: Stage[] 
   )
 
   if (ganttLayout.days.length === 0) {
-    return (
-      <section className="section" aria-labelledby="readonly-gantt-heading">
-        <h2 id="readonly-gantt-heading">甘特圖</h2>
-        <p>快照未包含有效的工程日期，無法顯示甘特圖。</p>
-      </section>
-    )
+    return <p>快照未包含有效的工程日期，無法顯示甘特圖。</p>
   }
 
   return (
-    <section className="section" aria-labelledby="readonly-gantt-heading">
-      <h2 id="readonly-gantt-heading">甘特圖</h2>
-      <p
-        className="muted"
-        style={{ marginTop: 0, color: 'var(--color-muted)' }}
-      >
+    <>
+      <p className="muted">
         範圍：{displayDate(project.plannedStart)} ~ {displayDate(project.plannedEnd)}
         （共 {ganttLayout.totalDays} 天）
       </p>
@@ -446,9 +521,7 @@ function ReadOnlyGantt({ project, stages }: { project: Project; stages: Stage[] 
             <div />
             <div className="gantt-track" style={{ gridTemplateColumns: gridTemplate }}>
               {ganttLayout.days.map((iso, idx) => {
-                const dow = new Date(
-                  `${iso}T00:00:00`,
-                ).getDay()
+                const dow = new Date(`${iso}T00:00:00`).getDay()
                 const isMonthStart = idx === 0 || iso.endsWith('-01')
                 const isWeekend = dow === 0 || dow === 6
                 const dayNumber = iso.slice(8, 10)
@@ -473,7 +546,11 @@ function ReadOnlyGantt({ project, stages }: { project: Project; stages: Stage[] 
             const stage = stages.find((s) => s.id === row.stageId)
             const tone = stage?.status ?? 'not_started'
             return (
-              <div className="gantt-bar-row" key={row.stageId} data-testid={`readonly-gantt-row-${row.stageId}`}>
+              <div
+                className="gantt-bar-row"
+                key={row.stageId}
+                data-testid={`readonly-gantt-row-${row.stageId}`}
+              >
                 <div className="stage-label">{row.name}</div>
                 <div className="gantt-bar-track">
                   <div
@@ -488,7 +565,7 @@ function ReadOnlyGantt({ project, stages }: { project: Project; stages: Stage[] 
                     }}
                     aria-label={`${row.name}：第 ${row.startIndex + 1} 天到第 ${row.endIndex + 1} 天，共 ${row.span} 天`}
                   >
-                    <span style={{ marginLeft: 4 }}>{row.name}</span>
+                    <span className="gantt-bar-label">{row.name}</span>
                   </div>
                 </div>
               </div>
@@ -496,24 +573,18 @@ function ReadOnlyGantt({ project, stages }: { project: Project; stages: Stage[] 
           })}
         </div>
       </div>
-    </section>
+    </>
   )
 }
 
 function formatGeneratedAt(iso: string): string {
-  // Display-only — never feed back into date math.
   if (typeof iso !== 'string' || iso.length === 0) return '—'
-  // Strip seconds for a tighter UI; ISO 8601 strings sort lexically.
   const date = iso.slice(0, 10)
   const time = iso.slice(11, 16)
   if (!time) return date
   return `${date} ${time}`
 }
 
-/** Build the same human-readable countdown text we show in the dashboard
- *  row. Uses `daysRemaining` (captured at snapshot time) so the readonly
- *  view does not recompute against local today — recipients see the
- *  snapshot as-of `generatedAt`. */
 function warrantyCountdown(w: ShareWarranty): string {
   if (!Number.isFinite(w.daysRemaining)) return ''
   const n = w.daysRemaining

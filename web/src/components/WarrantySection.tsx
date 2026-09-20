@@ -149,7 +149,7 @@ export function WarrantySection() {
   )
 
   return (
-    <section className="section warranty-section" aria-labelledby={headingId}>
+    <article className="support-section warranty-section" aria-labelledby={headingId}>
       <header className="warranty-section-header">
         <h2 id={headingId}>保固紀錄</h2>
         <button
@@ -290,7 +290,7 @@ export function WarrantySection() {
         onCancel={() => setPendingDeleteId(null)}
         onConfirm={confirmDelete}
       />
-    </section>
+    </article>
   )
 }
 

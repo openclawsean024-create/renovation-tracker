@@ -1,0 +1,602 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>我的裝修工程 · Renovation Tracker</title>
+  <style>
+    /* UI-001–007, UI-009–013. Standalone design preview; no production storage. */
+    :root {
+      --bg: #f5f7fb; --surface: #fff; --subtle: #f8fafc;
+      --ink: #172033; --muted: #667085; --border: #e4e7ec; --border-strong: #cfd5df;
+      --primary: #1f4d8f; --primary-hover: #173d73; --primary-soft: #eaf1fb;
+      --accent: #c98727; --accent-soft: #fff5df; --success: #19704a; --success-soft: #edf7f1;
+      --warning: #9a6700; --danger: #b42318; --danger-soft: #fff0ed;
+      --navy: #172b47; --on-navy: #c4d1e2; --navy-border: #60748e;
+      --control-border: #8995a6; --focus: #1f4d8f;
+      --r-sm: 8px; --r-md: 12px; --r-lg: 16px;
+      --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 20px; --s6: 24px; --s8: 32px; --s10: 40px;
+      --shadow: 0 1px 2px rgb(23 32 51 / 3%);
+      font-family: system-ui, -apple-system, "Segoe UI", "PingFang TC", "Microsoft JhengHei", sans-serif;
+      color: var(--ink); background: var(--bg); font-synthesis: none;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; scroll-padding-top: 140px; }
+    body { margin: 0; font-size: 14px; line-height: 1.6; }
+    h1, h2, h3, p, figure, dl, dd { margin: 0; }
+    h1 { font-size: 32px; font-weight: 650; letter-spacing: -.04em; line-height: 1.3; }
+    h2 { font-size: 20px; font-weight: 650; letter-spacing: -.025em; line-height: 1.4; }
+    h3 { font-size: 16px; font-weight: 650; }
+    a { color: inherit; text-decoration: none; }
+    button, input, select, textarea { font: inherit; }
+    button, a { -webkit-tap-highlight-color: transparent; }
+    button { cursor: pointer; }
+    button:disabled { cursor: not-allowed; color: var(--muted); background: var(--border); border-color: var(--border-strong); }
+    button, a, input, select, textarea { touch-action: manipulation; }
+    :focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; }
+    ::selection { color: var(--surface); background: var(--primary); }
+    [hidden] { display: none !important; }
+    .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+    .skip { position: fixed; top: 12px; left: 16px; z-index: 50; padding: 12px 20px; border-radius: var(--r-sm); color: var(--surface); background: var(--primary); transform: translateY(-160%); }
+    .skip:focus { transform: translateY(0); }
+    .icon { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+    .numeric { font-variant-numeric: tabular-nums; }
+    .muted { color: var(--muted); }
+    .eyebrow { font-size: 12px; color: var(--muted); font-weight: 600; letter-spacing: .08em; }
+    .wrap { max-width: 1280px; margin-inline: auto; padding-inline: var(--s8); }
+    .app-header { position: sticky; top: 0; z-index: 10; background: var(--surface); border-bottom: 1px solid var(--border); }
+    .brand-row { display: flex; align-items: center; justify-content: space-between; gap: var(--s6); min-height: 76px; }
+    .brand { display: inline-flex; align-items: center; gap: var(--s3); min-height: 44px; }
+    .brand-mark { width: 36px; height: 36px; background: var(--navy); border-radius: var(--r-sm); display: grid; place-items: center; color: var(--surface); }
+    .brand-mark .icon { width: 26px; height: 26px; stroke-width: 1.4; }
+    .wordmark { font-size: 15px; font-weight: 700; letter-spacing: -.035em; line-height: 1.2; }
+    .wordmark small { display: block; font-weight: 450; letter-spacing: .1em; font-size: 11px; color: var(--muted); margin-top: 5px; }
+    .header-note { display: flex; align-items: center; gap: var(--s2); color: var(--muted); font-size: 12px; }
+    .header-note .icon { width: 16px; height: 16px; }
+    .nav-row { display: flex; align-items: center; gap: var(--s8); }
+    .nav-link { min-height: 44px; position: relative; display: flex; align-items: center; gap: var(--s2); color: var(--muted); font-weight: 550; padding: var(--s2) 0 var(--s3); }
+    .nav-link:hover { color: var(--primary); }
+    .nav-link[aria-current] { color: var(--primary); }
+    .nav-link[aria-current]::after { content: ""; position: absolute; bottom: -1px; left: 0; right: 0; height: 3px; background: var(--primary); border-radius: 3px 3px 0 0; }
+    .nav-link .icon { width: 17px; height: 17px; }
+    main { padding-block: var(--s8) 0; }
+    .hero { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(320px, 1fr); gap: var(--s8); align-items: stretch; }
+    .project-intro { display: flex; flex-direction: column; justify-content: space-between; gap: var(--s6); padding-block: var(--s1); }
+    .project-title-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s4); margin-block: var(--s2) var(--s3); }
+    .status { display: inline-flex; align-items: center; gap: 6px; border-radius: var(--r-sm); font-size: 12px; line-height: 1.5; color: var(--muted); white-space: nowrap; }
+    .status.planning { color: var(--warning); background: var(--accent-soft); padding: 5px 9px; }
+    .status .symbol { font-size: 16px; line-height: 1; }
+    .intro-bottom { display: flex; align-items: end; justify-content: space-between; gap: var(--s6); }
+    .project-dates { border-left: 2px solid var(--accent); padding-left: var(--s4); }
+    .project-dates small { display: block; color: var(--muted); margin-bottom: var(--s1); font-size: 12px; }
+    .project-dates p { font-size: 15px; font-weight: 550; white-space: nowrap; }
+    .date-arrow { color: var(--muted); padding-inline: var(--s2); }
+    .btn { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: var(--s2); padding: 10px 16px; border: 1px solid var(--control-border); border-radius: var(--r-sm); background: var(--surface); color: var(--ink); font-weight: 600; line-height: 1.5; transition: background .16s ease, border-color .16s ease, color .16s ease; }
+    .btn:hover:not(:disabled) { border-color: var(--primary); background: var(--primary-soft); color: var(--primary); }
+    .btn:active:not(:disabled) { background: var(--border); }
+    .btn.primary { background: var(--primary); color: var(--surface); border-color: var(--primary); }
+    .btn.primary:hover:not(:disabled) { background: var(--primary-hover); border-color: var(--primary-hover); }
+    .btn.quiet { background: transparent; border-color: transparent; color: var(--primary); }
+    .btn.quiet:hover:not(:disabled) { background: var(--primary-soft); }
+    .btn .icon { width: 18px; height: 18px; }
+    .btn.icon-only { width: 44px; padding: 10px; flex-shrink: 0; }
+    .next-step { background: var(--navy); color: var(--surface); border-radius: var(--r-lg); padding: var(--s6); display: flex; flex-direction: column; justify-content: space-between; gap: var(--s5); }
+    .next-top { display: flex; align-items: center; justify-content: space-between; gap: var(--s4); }
+    .next-top .eyebrow { color: var(--on-navy); }
+    .step-index { font-size: 12px; color: var(--on-navy); font-variant-numeric: tabular-nums; }
+    .next-step h2 { font-size: 20px; margin-top: 4px; }
+    .next-step p { font-size: 13px; color: var(--on-navy); margin-top: var(--s1); }
+    .next-footer { display: flex; align-items: center; justify-content: space-between; gap: var(--s4); padding-top: var(--s4); border-top: 1px solid var(--navy-border); }
+    .next-footer .status { color: var(--on-navy); }
+    .next-step .btn { padding: 7px 12px; background: transparent; color: var(--surface); border-color: var(--navy-border); }
+    .next-step .btn:hover { color: var(--ink); background: var(--surface); border-color: var(--surface); }
+    .next-step :focus-visible { outline-color: var(--surface); }
+    .summary { display: grid; grid-template-columns: 1.25fr 1fr .8fr .8fr .8fr 1.55fr; margin-top: var(--s6); background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); box-shadow: var(--shadow); }
+    .metric { min-width: 0; padding: var(--s5) var(--s6); border-right: 1px solid var(--border); }
+    .metric:last-child { border: 0; }
+    .metric dt { font-size: 12px; color: var(--muted); margin-bottom: var(--s2); }
+    .metric dd { font-size: 28px; line-height: 1.15; font-weight: 550; letter-spacing: -.045em; font-variant-numeric: tabular-nums; }
+    .metric dd small { font-size: 12px; font-weight: 450; letter-spacing: 0; color: var(--muted); margin-left: 4px; }
+    .metric.completion { background: var(--primary-soft); border-radius: var(--r-md) 0 0 var(--r-md); position: relative; }
+    .completion dd { color: var(--primary); }
+    .completion dd small { color: var(--primary); }
+    .progress { display: flex; gap: 3px; margin-top: var(--s3); height: 4px; }
+    .progress span { flex: 1; border: 1px solid var(--control-border); border-radius: 1px; }
+    .metric.dates dd { display: flex; flex-direction: column; font-size: 13px; line-height: 1.7; font-weight: 500; letter-spacing: 0; }
+    .metric.dates dd span { display: flex; gap: var(--s2); justify-content: space-between; }
+    .metric.dates dd small { margin: 0; }
+    .section { margin-top: var(--s6); border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); box-shadow: var(--shadow); min-width: 0; }
+    .section-header { padding: var(--s6); display: flex; justify-content: space-between; align-items: center; gap: var(--s6); }
+    .section-heading { display: flex; align-items: baseline; gap: var(--s3); flex-wrap: wrap; }
+    .section-count { font-size: 12px; color: var(--muted); }
+    .section-header p { font-size: 13px; color: var(--muted); margin-top: var(--s1); }
+    .section-tools { display: flex; align-items: center; gap: var(--s4); flex-shrink: 0; }
+    .view-switch { display: flex; background: var(--subtle); border: 1px solid var(--control-border); padding: 3px; border-radius: var(--r-sm); }
+    .view-switch button { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 6px 12px; border: 0; border-radius: 5px; background: transparent; color: var(--muted); font-size: 12px; font-weight: 550; }
+    .view-switch button .icon { height: 16px; width: 16px; }
+    .view-switch button[aria-selected="true"] { color: var(--primary); background: var(--surface); box-shadow: 0 1px 3px rgb(23 32 51 / 12%); }
+    .view-switch button:hover { color: var(--primary); }
+    .board-intro { display: flex; align-items: center; justify-content: space-between; padding: 0 var(--s6) var(--s4); gap: var(--s4); color: var(--muted); font-size: 12px; }
+    .board-intro strong { color: var(--ink); font-weight: 550; }
+    .legend { display: inline-flex; align-items: center; gap: var(--s2); }
+    .legend::before { content: ""; width: 20px; height: 9px; border: 1px solid var(--primary); background: var(--primary-soft); border-radius: 2px; }
+    .timeline-scroll { overflow: auto; overscroll-behavior-x: contain; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+    .timeline-scroll:focus-visible { outline-offset: -3px; }
+    .timeline-grid { --label-width: 224px; display: grid; grid-template-columns: var(--label-width) repeat(33, minmax(24px, 1fr)); min-width: 1030px; position: relative; }
+    .timeline-corner { grid-column: 1; grid-row: 1 / 3; position: sticky; left: 0; z-index: 3; display: flex; align-items: center; padding: 0 var(--s6); font-size: 12px; color: var(--muted); background: var(--subtle); border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+    .month { padding: 7px var(--s3); font-size: 11px; font-weight: 550; background: var(--subtle); border-right: 1px solid var(--border); }
+    .day { text-align: center; padding-block: 5px; color: var(--muted); font-size: 10px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); background: var(--subtle); }
+    .weekend { background: var(--bg); }
+    .chart-label { grid-column: 1; position: sticky; left: 0; z-index: 2; display: flex; align-items: center; gap: var(--s3); min-height: 52px; padding-inline: var(--s6) var(--s4); border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); background: var(--surface); }
+    .stage-number { font-size: 11px; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--muted); }
+    .chart-label strong { font-weight: 550; font-size: 14px; }
+    .chart-label .status { font-size: 11px; margin-left: auto; }
+    .grid-day { border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); min-height: 52px; }
+    .gantt-hit { z-index: 1; align-self: center; height: 44px; padding: 9px 2px; border: 0; background: transparent; color: var(--primary); min-width: 0; }
+    .gantt-bar { display: flex; align-items: center; justify-content: center; height: 26px; width: 100%; border: 1px solid var(--primary); border-radius: 4px; background: var(--primary-soft); font-size: 10px; font-weight: 550; white-space: nowrap; }
+    .gantt-hit:hover .gantt-bar { background: var(--primary); color: var(--surface); }
+    .gantt-hit:focus-visible { outline-offset: -2px; }
+    .gantt-hit.first .gantt-bar { border-left-width: 3px; }
+    .board-foot { padding: var(--s3) var(--s6) var(--s4); display: flex; justify-content: space-between; flex-wrap: wrap; gap: var(--s2); color: var(--muted); font-size: 12px; }
+    .board-foot span:last-child { display: flex; align-items: center; gap: 6px; }
+    .board-foot .icon { width: 14px; height: 14px; }
+    .stage-list { margin: 0; padding: 0 var(--s6); list-style: none; }
+    .stage-row { display: grid; grid-template-columns: 32px minmax(100px, 1fr) minmax(220px, 1.2fr) 100px 44px; align-items: center; gap: var(--s4); border-top: 1px solid var(--border); padding: var(--s3) 0; }
+    .stage-row .stage-number { width: 30px; height: 30px; display: grid; place-items: center; border: 1px solid var(--border-strong); border-radius: 50%; }
+    .stage-row .stage-period { color: var(--muted); font-size: 13px; }
+    .stage-row strong { font-weight: 550; }
+    .stage-row .btn { color: var(--primary); }
+    .records-heading { display: flex; align-items: baseline; gap: var(--s4); margin-top: var(--s10); margin-bottom: var(--s4); }
+    .records-heading p { color: var(--muted); font-size: 13px; }
+    .records-grid { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); gap: var(--s6); align-items: stretch; }
+    .records-grid .section { margin-top: 0; }
+    .section-icon { display: inline-flex; align-items: center; gap: var(--s3); }
+    .section-icon > .icon { color: var(--muted); }
+    .budget-body { padding: 0 var(--s6) var(--s6); }
+    .budget-totals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-block: 1px solid var(--border); padding-block: var(--s5); margin-bottom: var(--s6); }
+    .budget-totals dt { font-size: 12px; color: var(--muted); margin-bottom: var(--s2); }
+    .budget-totals dd { font-size: 26px; line-height: 1.2; font-variant-numeric: tabular-nums; color: var(--muted); }
+    .empty-copy h3 { font-size: 14px; }
+    .empty-copy p { margin-top: var(--s1); font-size: 13px; color: var(--muted); max-width: 35em; }
+    .budget-body .btn { margin-top: var(--s4); }
+    .photo-empty { margin: 0 var(--s6) var(--s6); min-height: 243px; border: 1px dashed var(--control-border); border-radius: var(--r-md); background: var(--subtle); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: var(--s6); }
+    .photo-empty > .icon { height: 28px; width: 28px; color: var(--muted); margin-bottom: var(--s3); }
+    .photo-empty .btn { margin-top: var(--s4); }
+    .support { margin-top: var(--s6); }
+    .support-section { padding: var(--s6); display: grid; grid-template-columns: minmax(140px, .65fr) minmax(0, 1.65fr) auto; align-items: center; gap: var(--s6); }
+    .support-section + .support-section { border-top: 1px solid var(--border); }
+    .support-section h2 { font-size: 18px; }
+    .support-section .empty-copy p { margin-top: 3px; }
+    footer { display: flex; align-items: center; justify-content: space-between; gap: var(--s6); padding: var(--s6) 0 var(--s8); color: var(--muted); font-size: 11px; }
+    .footer-wordmark { font-weight: 600; letter-spacing: -.02em; }
+    .readonly-banner { display: flex; justify-content: space-between; align-items: center; gap: var(--s4); border: 1px solid var(--primary); background: var(--primary-soft); border-radius: var(--r-md); padding: var(--s4) var(--s5); margin-bottom: var(--s6); }
+    .readonly-banner p { font-size: 13px; color: var(--muted); }
+    body.readonly .edit-control { display: none !important; }
+    body.readonly .gantt-hit { pointer-events: none; }
+    dialog { border: 1px solid var(--border-strong); border-radius: var(--r-lg); background: var(--surface); color: var(--ink); padding: 0; width: min(560px, calc(100% - 32px)); max-height: calc(100dvh - 32px); box-shadow: 0 24px 80px rgb(23 32 51 / 22%); }
+    dialog::backdrop { background: rgb(23 32 51 / 45%); }
+    body:has(dialog[open]) { overflow: hidden; }
+    .dialog-head { display: flex; align-items: center; justify-content: space-between; padding: var(--s5) var(--s6); border-bottom: 1px solid var(--border); }
+    .dialog-head h2 { font-size: 20px; }
+    .dialog-content { padding: var(--s6); }
+    .preview-note { color: var(--muted); font-size: 13px; padding: var(--s3) var(--s4); background: var(--subtle); border: 1px solid var(--border); border-radius: var(--r-sm); margin-bottom: var(--s5); }
+    .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s4); }
+    .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; font-size: 13px; font-weight: 550; }
+    .field.full { grid-column: 1 / -1; }
+    input, select, textarea { min-width: 0; max-width: 100%; width: 100%; border: 1px solid var(--control-border); border-radius: var(--r-sm); color: var(--ink); background: var(--surface); padding: 10px 12px; min-height: 44px; font-weight: 400; }
+    textarea { resize: vertical; min-height: 86px; }
+    input[type="file"] { font-size: 12px; }
+    input::file-selector-button { font: inherit; border: 0; background: var(--primary-soft); color: var(--primary); border-radius: 4px; padding: 6px 10px; margin-right: var(--s2); }
+    input[aria-invalid="true"], select[aria-invalid="true"] { border-color: var(--danger); }
+    .field-hint { font-size: 12px; color: var(--muted); margin-top: var(--s3); }
+    .form-feedback { margin-top: var(--s4); padding: var(--s3) var(--s4); background: var(--danger-soft); color: var(--danger); border: 1px solid var(--danger); border-radius: var(--r-sm); font-size: 13px; }
+    .form-feedback.success { background: var(--success-soft); border-color: var(--success); color: var(--success); }
+    .dialog-actions { display: flex; justify-content: flex-end; align-items: center; gap: var(--s3); margin-top: var(--s6); }
+    .share-facts { margin: 0; }
+    .share-facts > div { display: flex; justify-content: space-between; gap: var(--s6); padding-block: var(--s3); border-bottom: 1px solid var(--border); font-size: 13px; }
+    .share-facts dt { color: var(--muted); }
+    .share-facts dd { text-align: right; }
+    .noscript { margin: 24px; border: 1px solid var(--warning); padding: 16px; background: var(--accent-soft); }
+    @media (min-width: 1600px) { .wrap { max-width: 1280px; } }
+    @media (max-width: 1199px) {
+      .wrap { padding-inline: var(--s6); }
+      .hero { grid-template-columns: minmax(0, 1.2fr) minmax(300px, 1fr); gap: var(--s6); }
+      .intro-bottom { align-items: flex-start; flex-direction: column; gap: var(--s4); }
+      .summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .metric { padding: var(--s4) var(--s6); }
+      .metric:nth-child(3n) { border-right: 0; }
+      .metric:nth-child(-n+3) { border-bottom: 1px solid var(--border); }
+      .metric.completion { border-radius: var(--r-md) 0 0 0; }
+      .metric.dates dd { flex-direction: row; gap: var(--s3); flex-wrap: wrap; }
+      .metric.dates dd span { flex-direction: column; gap: 0; }
+      .section-tools { gap: var(--s2); }
+      .support-section { grid-template-columns: minmax(120px, .65fr) minmax(0, 1.65fr) auto; gap: var(--s4); }
+    }
+    @media (max-width: 767px) {
+      html { scroll-padding-top: 184px; }
+      .wrap { padding-inline: var(--s4); }
+      .brand-row { min-height: 68px; gap: var(--s2); }
+      .brand { gap: var(--s2); }
+      .brand-mark { width: 32px; height: 32px; }
+      .wordmark { font-size: 14px; }
+      .wordmark small { font-size: 10px; }
+      .header-note .icon, .header-note .preview-version { display: none; }
+      .header-note { font-size: 11px; white-space: nowrap; }
+      .nav-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 var(--s3); padding-bottom: var(--s2); }
+      .nav-link { justify-content: center; min-height: 44px; padding: var(--s2); font-size: 13px; }
+      .nav-link .icon { width: 15px; height: 15px; }
+      .nav-link[aria-current] { background: var(--primary-soft); border-radius: var(--r-sm); }
+      .nav-link[aria-current]::after { display: none; }
+      main { padding-top: var(--s6); }
+      h1 { font-size: 24px; }
+      h2 { font-size: 18px; }
+      .hero { grid-template-columns: minmax(0, 1fr); gap: var(--s6); }
+      .project-intro { padding: 0; gap: var(--s5); }
+      .project-title-row { gap: var(--s3); }
+      .project-intro > div > .muted { font-size: 13px; }
+      .intro-bottom { gap: var(--s5); }
+      .intro-bottom > .btn { width: 100%; }
+      .project-dates p { font-size: 14px; }
+      .next-step { padding: var(--s5); gap: var(--s4); }
+      .next-step h2 { font-size: 18px; }
+      .next-footer { padding-top: var(--s3); }
+      .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .metric { padding: var(--s4); border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+      .metric:nth-child(3n) { border-right: 1px solid var(--border); }
+      .metric:nth-child(2n) { border-right: 0; }
+      .metric:nth-last-child(-n+2) { border-bottom: 0; }
+      .metric dd { font-size: 26px; }
+      .metric.dates dd { flex-direction: column; gap: 0; font-size: 12px; }
+      .metric.dates dd span { flex-direction: row; gap: var(--s1); }
+      .metric.dates dd small { font-size: 10px; }
+      .section-header { padding: var(--s4); flex-wrap: wrap; gap: var(--s4); }
+      .stage-section .section-tools { width: 100%; justify-content: space-between; }
+      .view-switch button { min-height: 44px; padding-inline: var(--s3); }
+      .view-switch button .icon { display: none; }
+      .section-tools > .btn { font-size: 13px; padding-inline: var(--s3); }
+      .board-intro { padding: 0 var(--s4) var(--s3); flex-wrap: wrap; gap: var(--s2); }
+      .timeline-grid { --label-width: 144px; min-width: 936px; }
+      .timeline-corner { padding-inline: var(--s4); }
+      .chart-label { padding-inline: var(--s3); gap: var(--s2); }
+      .chart-label .stage-number { display: none; }
+      .chart-label .status { font-size: 10px; }
+      .chart-label .symbol { font-size: 12px; }
+      .chart-label strong { font-size: 13px; }
+      .board-foot { padding: var(--s3) var(--s4) var(--s4); }
+      .stage-list { padding-inline: var(--s4); }
+      .stage-row { grid-template-columns: 30px minmax(0, 1fr) auto 44px; gap: var(--s1) var(--s3); padding-block: var(--s4); }
+      .stage-row .stage-number { grid-row: 1 / 3; }
+      .stage-row strong { grid-column: 2; grid-row: 1; }
+      .stage-row .stage-period { grid-row: 2; grid-column: 2 / 4; font-size: 11px; }
+      .stage-row .status { grid-column: 3; grid-row: 1; font-size: 11px; }
+      .stage-row .btn { grid-column: 4; grid-row: 1 / 3; }
+      .records-heading { margin-top: var(--s8); gap: var(--s1); flex-direction: column; }
+      .records-grid { grid-template-columns: minmax(0, 1fr); }
+      .budget-body { padding: 0 var(--s4) var(--s5); }
+      .budget-totals { padding-block: var(--s4); margin-bottom: var(--s5); }
+      .photo-empty { margin: 0 var(--s4) var(--s4); min-height: 240px; padding: var(--s5); }
+      .support-section { padding: var(--s5) var(--s4); grid-template-columns: minmax(0, 1fr); gap: var(--s4); }
+      .support-section .btn { justify-self: start; }
+      footer { flex-direction: column; align-items: flex-start; gap: var(--s1); font-size: 10px; }
+      .readonly-banner { flex-direction: column; align-items: flex-start; padding: var(--s4); }
+      .dialog-head { padding: var(--s4); }
+      .dialog-content { padding: var(--s4); }
+      .form-grid { grid-template-columns: minmax(0, 1fr); }
+      .dialog-actions { flex-wrap: wrap; }
+      .dialog-actions .btn { flex: 1; }
+      .share-facts > div { flex-wrap: wrap; gap: var(--s1) var(--s4); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+    }
+    @media (forced-colors: active) {
+      .btn, .brand-mark, .gantt-bar, .view-switch button[aria-selected="true"] { border: 1px solid ButtonText; }
+      .nav-link[aria-current] { text-decoration: underline; }
+    }
+  </style>
+</head>
+<body>
+  <svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+    <symbol id="i-mark" viewBox="0 0 28 28"><path d="M5 23V5h10v7H5m10 0 8 11M15 5h8v7h-8M5 23h7v-7H5"/></symbol>
+    <symbol id="i-overview" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><path d="M14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z"/></symbol>
+    <symbol id="i-timeline" viewBox="0 0 24 24"><path d="M5 3v18M10 5h10M10 10h6M14 15h7M17 20h4"/></symbol>
+    <symbol id="i-budget" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 11h2m4 0h2M8 15h2m4 0h2M8 18h2m4 0h2"/></symbol>
+    <symbol id="i-photo" viewBox="0 0 24 24"><path d="M3 7h4l2-3h6l2 3h4v13H3z"/><circle cx="12" cy="13" r="4"/></symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18m-13 4h3m3 0h2m-8 3h3"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="m12 3 8 3v6c0 4-4 7-8 9-4-2-8-5-8-9V6zM8 12l3 3 5-6"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4 12h15m-6-6 6 6-6 6"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-share" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.5 6.8-4m-6.8 7 6.8 4"/></symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24"><path d="m15 4 5 5M4 20l5-1L21 7l-5-5L4 14zM4 14l5 5"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 5h13M8 12h13M8 19h13M3 5h.01M3 12h.01M3 19h.01"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+    <symbol id="i-local" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8m-4-4v4"/></symbol>
+  </defs></svg>
+  <a class="skip" href="#main">跳至主要內容</a>
+  <header class="app-header">
+    <div class="wrap">
+      <div class="brand-row">
+        <a class="brand" href="#overview" aria-label="Renovation Tracker 工程總覽">
+          <span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="#i-mark"/></svg></span>
+          <span class="wordmark">Renovation Tracker<small>裝修進度管理</small></span>
+        </a>
+        <div class="header-note"><svg class="icon" aria-hidden="true"><use href="#i-local"/></svg><span>介面原型<span class="preview-version"> · v3</span></span></div>
+      </div>
+      <nav class="nav-row" aria-label="工程導覽">
+        <a class="nav-link" href="#overview" aria-current="location"><svg class="icon" aria-hidden="true"><use href="#i-overview"/></svg>總覽</a>
+        <a class="nav-link" href="#timeline"><svg class="icon" aria-hidden="true"><use href="#i-timeline"/></svg>階段與工期</a>
+        <a class="nav-link" href="#budget"><svg class="icon" aria-hidden="true"><use href="#i-budget"/></svg>預算</a>
+        <a class="nav-link" href="#photos"><svg class="icon" aria-hidden="true"><use href="#i-photo"/></svg>現場照片</a>
+        <a class="nav-link" href="#schedule"><svg class="icon" aria-hidden="true"><use href="#i-calendar"/></svg>近期工作</a>
+        <a class="nav-link" href="#warranties"><svg class="icon" aria-hidden="true"><use href="#i-shield"/></svg>保固</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap" id="main" tabindex="-1">
+    <div class="readonly-banner" id="readonly-banner" hidden>
+      <div><strong>唯讀畫面預覽</strong><p>此為目前 seed 資料的展示，未產生分享連結；編輯入口已隱藏。</p></div>
+      <button class="btn" id="leave-readonly">返回編輯預覽</button>
+    </div>
+    <section id="overview" aria-labelledby="project-title">
+      <div class="hero">
+        <div class="project-intro">
+          <div>
+            <p class="eyebrow">工程總覽</p>
+            <div class="project-title-row"><h1 id="project-title">我的裝修工程</h1><span class="status planning"><span class="symbol" aria-hidden="true">○</span>規劃中</span></div>
+            <p class="muted">七個階段已排定，尚未有施工進度紀錄。</p>
+          </div>
+          <div class="intro-bottom">
+            <div class="project-dates"><small>預計施工期間</small><p class="numeric"><time datetime="2026-01-05">2026.01.05</time><span class="date-arrow" aria-label="至">→</span><time datetime="2026-02-06">2026.02.06</time></p></div>
+            <button class="btn primary edit-control" id="share"><svg class="icon" aria-hidden="true"><use href="#i-share"/></svg>產生唯讀分享</button>
+          </div>
+        </div>
+        <aside class="next-step" aria-labelledby="next-title">
+          <div>
+            <div class="next-top"><span class="eyebrow">從第一個階段開始</span><span class="step-index">01 / 07</span></div>
+            <h2 id="next-title">拆除</h2>
+            <p>確認現場狀況，再更新階段進度。</p>
+          </div>
+          <div class="next-footer"><span class="status"><span class="symbol" aria-hidden="true">○</span>尚未開始</span><button class="btn edit-control" data-stage="0">更新階段<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button></div>
+        </aside>
+      </div>
+      <dl class="summary" aria-label="工程摘要">
+        <div class="metric completion"><dt>工程完成度</dt><dd>0<small>%</small></dd><div class="progress" role="progressbar" aria-label="工程完成度，七個階段皆未完成" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div>
+        <div class="metric"><dt>階段總數</dt><dd>7<small>階段</small></dd></div>
+        <div class="metric"><dt>已完成</dt><dd>0<small>階段</small></dd></div>
+        <div class="metric"><dt>進行中</dt><dd>0<small>階段</small></dd></div>
+        <div class="metric"><dt>阻塞</dt><dd>0<small>階段</small></dd></div>
+        <div class="metric dates"><dt>計畫日期</dt><dd><span><small>開始</small><time datetime="2026-01-05">2026-01-05</time></span><span><small>完成</small><time datetime="2026-02-06">2026-02-06</time></span></dd></div>
+      </dl>
+    </section>
+
+    <section class="section stage-section" id="timeline" aria-labelledby="stages-title">
+      <header class="section-header">
+        <div><div class="section-heading"><h2 id="stages-title">階段與工期</h2><span class="section-count">7 個階段</span></div><p>從拆除到驗收，每一步都有清楚的時間位置。</p></div>
+        <div class="section-tools">
+          <div class="view-switch" role="tablist" aria-label="階段檢視方式">
+            <button id="tab-list" role="tab" aria-controls="panel-list" aria-selected="false" tabindex="-1"><svg class="icon" aria-hidden="true"><use href="#i-list"/></svg>清單</button>
+            <button id="tab-chart" role="tab" aria-controls="panel-chart" aria-selected="true" tabindex="0"><svg class="icon" aria-hidden="true"><use href="#i-timeline"/></svg>時間軸</button>
+          </div>
+          <button class="btn edit-control" data-form="stage"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg>新增階段</button>
+        </div>
+      </header>
+      <div id="panel-chart" role="tabpanel" aria-labelledby="tab-chart">
+        <div class="board-intro"><strong>2026 年 1 月 — 2 月</strong><span class="legend">預計施工期間 · 尚未開始</span></div>
+        <div class="timeline-scroll" tabindex="0" role="region" aria-label="每日工期圖，可左右捲動" aria-describedby="chart-help"><div class="timeline-grid" id="gantt"></div></div>
+        <div class="board-foot"><span id="chart-help">每天一格；日期包含開始與結束當日。可左右捲動。</span><span><svg class="icon" aria-hidden="true"><use href="#i-edit"/></svg><span id="chart-action-hint">點選工期條，查看階段</span></span></div>
+      </div>
+      <div id="panel-list" role="tabpanel" aria-labelledby="tab-list" hidden><ol class="stage-list" id="stage-list"></ol><div class="board-foot"><span>依施工順序排列 · 所有階段尚未開始</span></div></div>
+    </section>
+
+    <div class="records-heading"><h2>工程紀錄</h2><p>費用、現場與交付資料，在這裡逐步累積。</p></div>
+    <div class="records-grid">
+      <section class="section" id="budget" aria-labelledby="budget-title">
+        <header class="section-header"><div class="section-icon"><svg class="icon" aria-hidden="true"><use href="#i-budget"/></svg><h2 id="budget-title">預算追蹤</h2></div><span class="section-count">尚未建立</span></header>
+        <div class="budget-body">
+          <dl class="budget-totals"><div><dt>預算總額</dt><dd><span aria-hidden="true">—</span><span class="sr-only">尚無預算項目</span></dd></div><div><dt>實際支出</dt><dd><span aria-hidden="true">—</span><span class="sr-only">尚無支出紀錄</span></dd></div><div><dt>剩餘金額</dt><dd><span aria-hidden="true">—</span><span class="sr-only">待建立預算</span></dd></div></dl>
+          <div class="empty-copy"><h3>先為支出建立基準</h3><p>尚未建立預算項目。加入第一筆費用後，即可對照預算與實際支出。</p></div>
+          <button class="btn quiet edit-control" data-form="budget">新增預算項目<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        </div>
+      </section>
+      <section class="section" id="photos" aria-labelledby="photos-title">
+        <header class="section-header"><div class="section-icon"><svg class="icon" aria-hidden="true"><use href="#i-photo"/></svg><h2 id="photos-title">現場照片</h2></div><span class="section-count">尚無照片</span></header>
+        <div class="photo-empty"><svg class="icon" aria-hidden="true"><use href="#i-photo"/></svg><div class="empty-copy"><h3>留下現場的第一筆影像</h3><p>施工前、施工中、完工後，依階段整理照片。</p></div><button class="btn edit-control" data-form="photo"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg>新增第一張照片</button></div>
+      </section>
+    </div>
+    <div class="section support">
+      <section class="support-section" id="schedule" aria-labelledby="schedule-title"><div class="section-icon"><svg class="icon" aria-hidden="true"><use href="#i-calendar"/></svg><h2 id="schedule-title">近期工作</h2></div><div class="empty-copy"><h3>尚未安排工班工作</h3><p>建立工班與施工日期，集中查看排程和提醒。</p></div><button class="btn quiet edit-control" data-form="schedule">新增工作<svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></button></section>
+      <section class="support-section" id="warranties" aria-labelledby="warranties-title"><div class="section-icon"><svg class="icon" aria-hidden="true"><use href="#i-shield"/></svg><h2 id="warranties-title">保固紀錄</h2></div><div class="empty-copy"><h3>尚未建立保固紀錄</h3><p>記下保固期間與廠商聯絡方式，方便日後查找。</p></div><button class="btn quiet edit-control" data-form="warranty">新增保固<svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></button></section>
+    </div>
+    <footer><span class="footer-wordmark">Renovation Tracker</span><span>v3 介面預覽 · 使用既有示範資料 · 表單不儲存變更</span></footer>
+  </main>
+  <noscript><p class="noscript">此介面原型需要 JavaScript 才能顯示七個階段與互動表單。請啟用 JavaScript 後重新開啟。</p></noscript>
+
+  <dialog id="editor" aria-labelledby="editor-title" aria-describedby="editor-note">
+    <div class="dialog-head"><h2 id="editor-title">更新階段</h2><button class="btn quiet icon-only" data-close aria-label="關閉表單"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></div>
+    <div class="dialog-content"><p class="preview-note" id="editor-note">表單預覽：可檢查輸入，資料不會儲存或改變。</p><form id="preview-form" novalidate><div class="form-grid" id="fields"></div><p class="field-hint" id="form-hint"></p><p class="form-feedback" id="form-feedback" role="status" aria-live="polite" hidden></p><div class="dialog-actions"><button class="btn" type="button" data-close>取消</button><button class="btn primary" type="submit">檢查輸入</button></div></form></div>
+  </dialog>
+  <dialog id="share-dialog" aria-labelledby="share-title" aria-describedby="share-note">
+    <div class="dialog-head"><h2 id="share-title">唯讀分享</h2><button class="btn quiet icon-only" data-close aria-label="關閉分享"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></div>
+    <div class="dialog-content"><p class="preview-note" id="share-note">此為介面預覽，尚未產生分享連結。可先查看唯讀畫面的呈現方式。</p><dl class="share-facts"><div><dt>工程</dt><dd>我的裝修工程</dd></div><div><dt>施工期間</dt><dd class="numeric">2026-01-05 → 2026-02-06</dd></div><div><dt>階段進度</dt><dd>7 個階段 · 0% 完成</dd></div><div><dt>其他紀錄</dt><dd>預算、照片、工作、保固皆為空</dd></div></dl><p class="field-hint">正式版分享為產生當下的唯讀快照，不會即時同步，也不含照片原始檔。</p><div class="dialog-actions"><button class="btn" disabled aria-describedby="share-note">複製分享連結</button><button class="btn primary" id="preview-readonly">預覽唯讀畫面</button></div></div>
+  </dialog>
+  <script>
+    'use strict';
+    // Exact seed.ts order and lengths: 5 + 5 + 5 + 5 + 5 + 5 + 3 days.
+    // No network, storage, share serialization, or production model changes.
+    const stages = Object.freeze([
+      { name: '拆除', start: '2026-01-05', end: '2026-01-09', offset: 0, days: 5 },
+      { name: '水電', start: '2026-01-10', end: '2026-01-14', offset: 5, days: 5 },
+      { name: '泥作', start: '2026-01-15', end: '2026-01-19', offset: 10, days: 5 },
+      { name: '木作', start: '2026-01-20', end: '2026-01-24', offset: 15, days: 5 },
+      { name: '油漆', start: '2026-01-25', end: '2026-01-29', offset: 20, days: 5 },
+      { name: '安裝', start: '2026-01-30', end: '2026-02-03', offset: 25, days: 5 },
+      { name: '驗收', start: '2026-02-04', end: '2026-02-06', offset: 30, days: 3 }
+    ].map(Object.freeze));
+    const icon = name => `<svg class="icon" aria-hidden="true"><use href="#i-${name}"/></svg>`;
+    const shortDate = date => date.slice(5).replace('-', '/');
+    const number = index => String(index + 1).padStart(2, '0');
+    const status = '<span class="status"><span class="symbol" aria-hidden="true">○</span>尚未開始</span>';
+    const gantt = document.getElementById('gantt');
+    let chart = '<div class="timeline-corner">工程階段</div><div class="month" style="grid-column:2 / span 27;grid-row:1">2026 年 1 月</div><div class="month" style="grid-column:29 / span 6;grid-row:1">2 月</div>';
+    for (let day = 0; day < 33; day++) {
+      const value = day < 27 ? day + 5 : day - 26;
+      const weekend = day % 7 > 4 ? ' weekend' : '';
+      chart += `<div class="day${weekend}" style="grid-column:${day + 2};grid-row:2" aria-hidden="true">${String(value).padStart(2, '0')}</div>`;
+    }
+    stages.forEach((stage, index) => {
+      const row = index + 3;
+      chart += `<div class="chart-label" style="grid-row:${row}"><span class="stage-number">${number(index)}</span><strong>${stage.name}</strong>${status}</div>`;
+      for (let day = 0; day < 33; day++) chart += `<div class="grid-day${day % 7 > 4 ? ' weekend' : ''}" style="grid-column:${day + 2};grid-row:${row}" aria-hidden="true"></div>`;
+      chart += `<button class="gantt-hit${index === 0 ? ' first' : ''}" data-stage="${index}" style="grid-column:${stage.offset + 2} / span ${stage.days};grid-row:${row}" aria-label="查看${stage.name}階段，${stage.start} 至 ${stage.end}，尚未開始"><span class="gantt-bar">${shortDate(stage.start)}–${shortDate(stage.end)}</span></button>`;
+    });
+    gantt.innerHTML = chart;
+    document.getElementById('stage-list').innerHTML = stages.map((stage, index) => `<li class="stage-row"><span class="stage-number">${number(index)}</span><strong>${stage.name}</strong><span class="stage-period numeric"><time datetime="${stage.start}">${stage.start}</time> → <time datetime="${stage.end}">${stage.end}</time></span>${status}<button class="btn quiet icon-only edit-control" data-stage="${index}" aria-label="編輯${stage.name}階段">${icon('edit')}</button></li>`).join('');
+
+    const tabs = [...document.querySelectorAll('[role="tab"]')];
+    function switchView(id, focus = false) {
+      tabs.forEach(tab => {
+        const selected = tab.id === id;
+        tab.setAttribute('aria-selected', String(selected));
+        tab.tabIndex = selected ? 0 : -1;
+        document.getElementById(tab.getAttribute('aria-controls')).hidden = !selected;
+        if (selected && focus) tab.focus();
+      });
+    }
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => switchView(tab.id));
+      tab.addEventListener('keydown', event => {
+        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+        event.preventDefault();
+        const index = event.key === 'Home' ? 0 : event.key === 'End' ? 1 : (tabs.indexOf(tab) + 1) % 2;
+        switchView(tabs[index].id, true);
+      });
+    });
+    if (matchMedia('(max-width: 767px)').matches) switchView('tab-list');
+
+    const navLinks = [...document.querySelectorAll('.nav-link')];
+    const navSections = navLinks.map(link => document.querySelector(link.getAttribute('href')));
+    let scheduled = false;
+    function updateNavigation() {
+      const cutoff = document.querySelector('.app-header').getBoundingClientRect().bottom + 72;
+      let current = navSections[0];
+      navSections.forEach(section => { if (section.getBoundingClientRect().top <= cutoff) current = section; });
+      navLinks.forEach(link => {
+        if (link.hash === '#' + current.id) link.setAttribute('aria-current', 'location');
+        else link.removeAttribute('aria-current');
+      });
+      scheduled = false;
+    }
+    window.addEventListener('scroll', () => {
+      if (!scheduled) { scheduled = true; requestAnimationFrame(updateNavigation); }
+    }, { passive: true });
+    navLinks.forEach(link => link.addEventListener('click', () => {
+      const target = document.querySelector(link.hash);
+      target.tabIndex = -1;
+      target.focus({ preventScroll: true });
+    }));
+
+    const editor = document.getElementById('editor');
+    const shareDialog = document.getElementById('share-dialog');
+    const feedback = document.getElementById('form-feedback');
+    let formKind = 'stage';
+    let opener = null;
+    function openDialog(dialog, trigger) {
+      opener = trigger;
+      dialog.showModal();
+      const field = dialog.querySelector('input, select, textarea');
+      if (field) field.focus({ preventScroll: true });
+    }
+    document.querySelectorAll('[data-close]').forEach(button => button.addEventListener('click', () => button.closest('dialog').close()));
+    [editor, shareDialog].forEach(dialog => dialog.addEventListener('close', () => {
+      if (opener && !document.body.classList.contains('readonly')) opener.focus({ preventScroll: true });
+    }));
+    const input = (label, name, type = 'text', value = '', required = false, full = false, extra = '') => `<label class="field${full ? ' full' : ''}">${label}${required ? '（必填）' : ''}<input name="${name}" type="${type}" value="${value}" ${required ? 'required' : ''} ${extra}></label>`;
+    const select = (label, name, options, full = false) => `<label class="field${full ? ' full' : ''}">${label}<select name="${name}">${options.map(([value, text]) => `<option value="${value}">${text}</option>`).join('')}</select></label>`;
+    const note = '<label class="field full">備註<textarea name="note" rows="3"></textarea></label>';
+    const stageOptions = [['', '不指定階段'], ...stages.map((s, index) => [String(index), s.name])];
+    function showForm(kind, trigger, stageIndex) {
+      if (document.body.classList.contains('readonly')) return;
+      formKind = kind;
+      const isEdit = Number.isInteger(stageIndex);
+      const stage = isEdit ? stages[stageIndex] : null;
+      let fields = '';
+      let title = '';
+      let hint = '標示「必填」的欄位不可空白。';
+      if (kind === 'stage') {
+        title = isEdit ? `更新階段 · ${stage.name}` : '新增階段';
+        fields = input('階段名稱', 'name', 'text', stage?.name || '', true, true) + select('狀態', 'status', [['not_started', '尚未開始'], ['in_progress', '進行中'], ['completed', '已完成'], ['blocked', '阻塞']], true) + input('預計開始', 'start', 'date', stage?.start || '', true, false, 'min="2026-01-05" max="2026-02-06"') + input('預計結束', 'end', 'date', stage?.end || '', true, false, 'min="2026-01-05" max="2026-02-06"') + note;
+        hint = '階段日期須落在工程期間：2026-01-05 至 2026-02-06。';
+      } else if (kind === 'budget') {
+        title = '新增預算項目';
+        fields = input('項目名稱', 'name', 'text', '', true) + input('分類', 'category', 'text', '', true) + input('預算金額', 'planned', 'number', '', true, false, 'min="0" step="0.01"') + input('實際金額', 'actual', 'number', '', true, false, 'min="0" step="0.01"') + select('付款狀態', 'payment', [['unpaid', '未付款'], ['partial', '部分付款'], ['paid', '已付款']], true) + note;
+        hint = '金額不可為負數，最多兩位小數。';
+      } else if (kind === 'photo') {
+        title = '新增照片';
+        fields = input('照片', 'photo', 'file', '', true, true, 'accept="image/*"') + select('分類', 'kind', [['before', '施工前'], ['progress', '施工中'], ['after', '完工後']]) + input('拍攝日期', 'date', 'date', '', true) + select('關聯階段', 'stage', stageOptions, true) + '<label class="field full">說明<textarea name="caption" rows="3"></textarea></label>';
+        hint = '支援圖片，單檔上限 10 MB。此原型只檢查檔案，不會上傳。';
+      } else if (kind === 'schedule') {
+        title = '新增工作';
+        fields = input('工班名稱', 'worker', 'text', '', true) + input('聯絡電話', 'phone', 'tel') + select('關聯階段', 'stage', stageOptions, true) + input('開始日期', 'start', 'date', '', true) + input('結束日期', 'end', 'date', '', true) + input('提醒日期', 'reminder', 'date', '', false, true) + note;
+        hint = '提醒日期不可晚於開始日期。';
+      } else {
+        title = '新增保固';
+        fields = input('保固項目', 'name', 'text', '', true) + input('提供廠商', 'provider', 'text', '', true) + input('聯絡方式', 'contact', 'text', '', false, true) + input('保固開始', 'start', 'date', '', true) + input('保固結束', 'end', 'date', '', true) + note;
+      }
+      document.getElementById('editor-title').textContent = title;
+      document.getElementById('fields').innerHTML = fields;
+      document.getElementById('form-hint').textContent = hint;
+      feedback.hidden = true;
+      feedback.classList.remove('success');
+      openDialog(editor, trigger);
+    }
+    document.querySelectorAll('[data-stage]').forEach(button => button.addEventListener('click', () => showForm('stage', button, Number(button.dataset.stage))));
+    document.querySelectorAll('[data-form]').forEach(button => button.addEventListener('click', () => showForm(button.dataset.form, button)));
+    document.getElementById('preview-form').addEventListener('submit', event => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const fields = [...form.querySelectorAll('input, select, textarea')];
+      fields.forEach(field => field.removeAttribute('aria-invalid'));
+      let invalid = fields.find(field => !field.checkValidity() || (field.required && field.type !== 'file' && !field.value.trim()));
+      let message = invalid ? '請確認必填欄位、日期範圍與輸入格式。' : '';
+      const data = new FormData(form);
+      if (!message && data.get('start') && data.get('end') && data.get('start') > data.get('end')) {
+        message = '結束日期不可早於開始日期。'; invalid = form.elements.namedItem('end');
+      }
+      if (!message && data.get('reminder') && data.get('reminder') > data.get('start')) {
+        message = '提醒日期不可晚於開始日期。'; invalid = form.elements.namedItem('reminder');
+      }
+      if (!message && formKind === 'photo') {
+        const file = form.elements.namedItem('photo').files[0];
+        if (!file || !file.type.startsWith('image/') || file.size > 10 * 1024 * 1024) {
+          message = '請選擇 10 MB 以下的圖片檔案。'; invalid = form.elements.namedItem('photo');
+        }
+      }
+      feedback.hidden = false;
+      feedback.classList.toggle('success', !message);
+      feedback.textContent = message || '輸入檢查通過。此為介面原型，沒有儲存或變更任何資料。';
+      if (invalid) { invalid.setAttribute('aria-invalid', 'true'); invalid.setAttribute('aria-describedby', 'form-feedback'); invalid.focus(); }
+      else feedback.scrollIntoView({ block: 'nearest' });
+    });
+    document.getElementById('share').addEventListener('click', event => openDialog(shareDialog, event.currentTarget));
+    document.getElementById('preview-readonly').addEventListener('click', () => {
+      document.body.classList.add('readonly');
+      document.getElementById('readonly-banner').hidden = false;
+      document.getElementById('chart-action-hint').textContent = '唯讀預覽 · 無法編輯';
+      document.querySelectorAll('.gantt-hit').forEach(button => { button.tabIndex = -1; button.setAttribute('aria-disabled', 'true'); });
+      shareDialog.close();
+      document.getElementById('leave-readonly').focus();
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    });
+    document.getElementById('leave-readonly').addEventListener('click', () => {
+      document.body.classList.remove('readonly');
+      document.getElementById('readonly-banner').hidden = true;
+      document.getElementById('chart-action-hint').textContent = '點選工期條，查看階段';
+      document.querySelectorAll('.gantt-hit').forEach(button => { button.tabIndex = 0; button.removeAttribute('aria-disabled'); });
+      document.getElementById('share').focus({ preventScroll: true });
+    });
+  </script>
+</body>
+</html>

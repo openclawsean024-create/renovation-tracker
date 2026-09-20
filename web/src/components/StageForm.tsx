@@ -97,81 +97,83 @@ export function StageForm({
   return (
     <Modal open={open} title={mode === 'create' ? '新增階段' : '編輯階段'} onClose={onCancel} labelledById={titleId}>
       <form onSubmit={handleSubmit} noValidate aria-describedby={`${formId}-errors`}>
-        <div className="field">
-          <label htmlFor={`${formId}-name`}>階段名稱</label>
-          <input
-            id={`${formId}-name`}
-            name="name"
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            aria-invalid={Boolean(errorFor(errors, 'name'))}
-            required
-          />
-          {errorFor(errors, 'name') && (
-            <span className="error" role="alert">{errorFor(errors, 'name')}</span>
-          )}
-        </div>
+        <div className="form-grid">
+          <div className="field full">
+            <label htmlFor={`${formId}-name`}>階段名稱</label>
+            <input
+              id={`${formId}-name`}
+              name="name"
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              aria-invalid={Boolean(errorFor(errors, 'name'))}
+              required
+            />
+            {errorFor(errors, 'name') && (
+              <span className="error" role="alert">{errorFor(errors, 'name')}</span>
+            )}
+          </div>
 
-        <div className="field">
-          <label htmlFor={`${formId}-status`}>狀態</label>
-          <select
-            id={`${formId}-status`}
-            name="status"
-            value={status}
-            onChange={(e) => setStatus(e.target.value as StageStatus)}
-          >
-            {STAGE_STATUSES.map((s) => (
-              <option key={s} value={s}>{STAGE_STATUS_LABELS[s]}</option>
-            ))}
-          </select>
-        </div>
+          <div className="field">
+            <label htmlFor={`${formId}-status`}>狀態</label>
+            <select
+              id={`${formId}-status`}
+              name="status"
+              value={status}
+              onChange={(e) => setStatus(e.target.value as StageStatus)}
+            >
+              {STAGE_STATUSES.map((s) => (
+                <option key={s} value={s}>{STAGE_STATUS_LABELS[s]}</option>
+              ))}
+            </select>
+          </div>
 
-        <div className="field">
-          <label htmlFor={`${formId}-plannedStart`}>預計開始</label>
-          <input
-            id={`${formId}-plannedStart`}
-            name="plannedStart"
-            type="date"
-            value={plannedStart}
-            onChange={(e) => setPlannedStart(e.target.value)}
-            aria-invalid={Boolean(errorFor(errors, 'plannedStart'))}
-            required
-          />
-          {errorFor(errors, 'plannedStart') && (
-            <span className="error" role="alert">{errorFor(errors, 'plannedStart')}</span>
-          )}
-        </div>
+          <div className="field">
+            <label htmlFor={`${formId}-plannedStart`}>預計開始</label>
+            <input
+              id={`${formId}-plannedStart`}
+              name="plannedStart"
+              type="date"
+              value={plannedStart}
+              onChange={(e) => setPlannedStart(e.target.value)}
+              aria-invalid={Boolean(errorFor(errors, 'plannedStart'))}
+              required
+            />
+            {errorFor(errors, 'plannedStart') && (
+              <span className="error" role="alert">{errorFor(errors, 'plannedStart')}</span>
+            )}
+          </div>
 
-        <div className="field">
-          <label htmlFor={`${formId}-plannedEnd`}>預計結束</label>
-          <input
-            id={`${formId}-plannedEnd`}
-            name="plannedEnd"
-            type="date"
-            value={plannedEnd}
-            onChange={(e) => setPlannedEnd(e.target.value)}
-            aria-invalid={Boolean(errorFor(errors, 'plannedEnd'))}
-            required
-          />
-          {errorFor(errors, 'plannedEnd') && (
-            <span className="error" role="alert">{errorFor(errors, 'plannedEnd')}</span>
-          )}
-        </div>
+          <div className="field">
+            <label htmlFor={`${formId}-plannedEnd`}>預計結束</label>
+            <input
+              id={`${formId}-plannedEnd`}
+              name="plannedEnd"
+              type="date"
+              value={plannedEnd}
+              onChange={(e) => setPlannedEnd(e.target.value)}
+              aria-invalid={Boolean(errorFor(errors, 'plannedEnd'))}
+              required
+            />
+            {errorFor(errors, 'plannedEnd') && (
+              <span className="error" role="alert">{errorFor(errors, 'plannedEnd')}</span>
+            )}
+          </div>
 
-        <div className="field">
-          <label htmlFor={`${formId}-note`}>備註</label>
-          <textarea
-            id={`${formId}-note`}
-            name="note"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-          />
+          <div className="field full">
+            <label htmlFor={`${formId}-note`}>備註</label>
+            <textarea
+              id={`${formId}-note`}
+              name="note"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+            />
+          </div>
         </div>
 
         <div id={`${formId}-errors`} aria-live="polite">
           {errors.length > 0 && (
-            <p className="error" role="alert">{errors.map((e) => e.message).join('；')}</p>
+            <div className="form-feedback" role="alert">{errors.map((e) => e.message).join('；')}</div>
           )}
         </div>
 

@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Renovation Tracker — UI direction preview</title>
+  <style>
+    :root {
+      --paper: #f4f5f2;
+      --surface: #ffffff;
+      --ink: #171b18;
+      --soft-ink: #526059;
+      --line: #dfe4df;
+      --line-dark: #c6cec8;
+      --forest: #174d3a;
+      --forest-2: #0f392b;
+      --mint: #e3eee8;
+      --ochre: #bb7a28;
+      --ochre-soft: #f6ead4;
+      --red: #a23b32;
+      --red-soft: #f6e7e4;
+      --radius: 14px;
+      --shadow: 0 12px 28px rgba(25, 45, 35, .07);
+      --font: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC", "Microsoft JhengHei", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font: 15px/1.55 var(--font); }
+    button { font: inherit; cursor: pointer; }
+    button:focus-visible, a:focus-visible { outline: 3px solid rgba(23, 77, 58, .35); outline-offset: 3px; }
+    a { color: inherit; text-decoration: none; }
+    .page { min-height: 100vh; }
+    .nav-wrap { border-bottom: 1px solid var(--line); background: rgba(255,255,255,.88); }
+    .nav { max-width: 1380px; min-height: 76px; display: flex; align-items: center; justify-content: space-between; gap: 24px; margin: 0 auto; padding: 0 40px; }
+    .brand { display: inline-flex; align-items: center; gap: 11px; font-weight: 750; letter-spacing: -.02em; }
+    .brand-mark { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; background: var(--forest); color: #fff; font-size: 13px; font-weight: 800; }
+    .brand small { display: block; color: var(--soft-ink); font-size: 10px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; }
+    .nav-links { display: flex; align-items: center; gap: 6px; }
+    .nav-link { padding: 9px 12px; border-radius: 8px; color: var(--soft-ink); font-size: 13px; }
+    .nav-link:hover, .nav-link.active { background: var(--mint); color: var(--forest); }
+    .nav-end { display: flex; align-items: center; gap: 12px; }
+    .avatar { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--ochre-soft); color: #7a4b18; font-size: 12px; font-weight: 800; }
+    .main { max-width: 1380px; margin: 0 auto; padding: 54px 40px 80px; }
+    .kicker { color: var(--forest); font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+    .hero { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(360px, .75fr); gap: 52px; align-items: end; padding-bottom: 48px; }
+    h1, h2, h3, p { margin: 0; }
+    h1 { max-width: 800px; margin-top: 14px; font-size: clamp(42px, 6vw, 82px); line-height: .98; letter-spacing: -.065em; font-weight: 650; }
+    .hero-copy { max-width: 730px; margin-top: 22px; color: var(--soft-ink); font-size: 17px; }
+    .hero-meta { display: flex; flex-wrap: wrap; gap: 9px 18px; margin-top: 26px; color: var(--soft-ink); font-size: 13px; }
+    .hero-meta strong { color: var(--ink); font-weight: 700; }
+    .hero-side { padding: 24px; border-left: 1px solid var(--line-dark); }
+    .side-label { color: var(--soft-ink); font-size: 12px; }
+    .progress-line { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; margin-top: 8px; }
+    .progress-line strong { color: var(--forest); font-size: 46px; line-height: 1; letter-spacing: -.06em; }
+    .progress-track { height: 6px; margin-top: 22px; overflow: hidden; border-radius: 99px; background: #dfe7e1; }
+    .progress-fill { width: 0%; height: 100%; background: var(--forest); }
+    .next-action { margin-top: 26px; padding-top: 18px; border-top: 1px solid var(--line); }
+    .next-action strong { display: block; margin-top: 6px; font-size: 15px; }
+    .next-action p { margin-top: 4px; color: var(--soft-ink); font-size: 13px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 26px; }
+    .btn { min-height: 43px; padding: 0 16px; border: 1px solid var(--line-dark); border-radius: 9px; background: var(--surface); color: var(--ink); font-weight: 700; }
+    .btn:hover { border-color: var(--forest); color: var(--forest); }
+    .btn-primary { border-color: var(--forest); background: var(--forest); color: #fff; }
+    .btn-primary:hover { border-color: var(--forest-2); background: var(--forest-2); color: #fff; }
+    .btn-quiet { border-color: transparent; background: transparent; color: var(--soft-ink); }
+    .btn-quiet:hover { background: var(--mint); }
+    .status { display: inline-flex; align-items: center; gap: 7px; width: fit-content; padding: 5px 10px; border-radius: 999px; background: var(--ochre-soft); color: #7a4b18; font-size: 12px; font-weight: 750; }
+    .status::before { width: 7px; height: 7px; border-radius: 50%; background: currentColor; content: ""; }
+    .summary { display: grid; grid-template-columns: 1.35fr repeat(3, 1fr); gap: 1px; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: var(--line); box-shadow: var(--shadow); }
+    .summary-item { min-height: 132px; padding: 23px; background: var(--surface); }
+    .summary-item.primary { background: var(--forest); color: #fff; }
+    .summary-item.primary .summary-label, .summary-item.primary .summary-note { color: #c8ded3; }
+    .summary-label { color: var(--soft-ink); font-size: 12px; font-weight: 700; }
+    .summary-value { margin-top: 15px; font-size: 32px; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -.05em; }
+    .summary-note { margin-top: 9px; color: var(--soft-ink); font-size: 12px; }
+    .content { display: grid; grid-template-columns: minmax(0, 1.24fr) minmax(350px, .76fr); gap: 22px; margin-top: 22px; }
+    .stack { display: grid; gap: 22px; align-content: start; }
+    .section { padding: 26px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); }
+    .section-head { display: flex; justify-content: space-between; align-items: start; gap: 16px; margin-bottom: 21px; }
+    h2 { font-size: 21px; line-height: 1.15; letter-spacing: -.025em; }
+    .section-head p { max-width: 430px; margin-top: 6px; color: var(--soft-ink); font-size: 13px; }
+    .outline { color: var(--forest); font-size: 12px; font-weight: 750; }
+    .stages { display: grid; gap: 2px; }
+    .stage { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; align-items: center; gap: 14px; min-height: 73px; border-top: 1px solid var(--line); }
+    .stage:first-child { border-top: 0; }
+    .stage-num { display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid var(--line-dark); border-radius: 50%; color: var(--soft-ink); font-size: 12px; font-weight: 700; }
+    .stage.current .stage-num { border-color: var(--forest); background: var(--mint); color: var(--forest); }
+    .stage-name { font-weight: 750; }
+    .stage-meta { margin-top: 3px; color: var(--soft-ink); font-size: 12px; }
+    .stage-state { color: var(--soft-ink); font-size: 12px; }
+    .stage.current .stage-state { color: var(--forest); font-weight: 750; }
+    .empty { display: grid; place-items: center; min-height: 185px; padding: 25px; border: 1px dashed var(--line-dark); border-radius: 10px; background: #fbfcfb; text-align: center; }
+    .empty-mark { display: grid; place-items: center; width: 38px; height: 38px; margin-bottom: 10px; border-radius: 11px; background: var(--mint); color: var(--forest); font-weight: 800; }
+    .empty strong { display: block; }
+    .empty p { max-width: 285px; margin-top: 5px; color: var(--soft-ink); font-size: 13px; }
+    .empty .btn { min-height: 37px; margin-top: 16px; font-size: 13px; }
+    .budget-row, .task { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 13px 0; border-top: 1px solid var(--line); }
+    .budget-total { display: flex; align-items: baseline; justify-content: space-between; padding: 2px 0 18px; }
+    .budget-total span, .task small { color: var(--soft-ink); font-size: 13px; }
+    .budget-total strong { font-size: 29px; letter-spacing: -.04em; }
+    .task-main { display: flex; align-items: center; gap: 12px; }
+    .task-date { display: grid; place-items: center; min-width: 42px; height: 42px; border-radius: 9px; background: var(--ochre-soft); color: #7a4b18; font-size: 10px; font-weight: 800; line-height: 1.1; }
+    .task strong { display: block; font-size: 14px; }
+    .task small { display: block; margin-top: 2px; }
+    .muted-note { color: var(--soft-ink); font-size: 12px; }
+    .timeline { overflow: auto; }
+    .timeline-grid { display: grid; grid-template-columns: 104px repeat(5, minmax(68px, 1fr)); min-width: 500px; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+    .timeline-grid > div { min-height: 43px; padding: 11px 8px; background: var(--surface); font-size: 12px; white-space: nowrap; }
+    .timeline-grid .head { color: var(--soft-ink); font-weight: 750; text-align: center; }
+    .timeline-grid .label { font-weight: 700; }
+    .timeline-grid .bar { height: 17px; align-self: center; margin: 13px 5px; border-radius: 5px; background: var(--forest); }
+    .timeline-grid .bar.next { background: #ced9d1; }
+    .footnote { margin-top: 10px; color: var(--soft-ink); font-size: 12px; }
+    .toast { position: fixed; right: 24px; bottom: 24px; display: none; padding: 12px 16px; border-radius: 9px; background: var(--forest); color: #fff; box-shadow: var(--shadow); font-size: 13px; }
+    .toast.show { display: block; }
+    @media (max-width: 1120px) {
+      .nav { padding-left: 24px; padding-right: 24px; }
+      .main { padding-left: 24px; padding-right: 24px; }
+      .hero { grid-template-columns: 1fr; gap: 24px; }
+      .hero-side { border-top: 1px solid var(--line-dark); border-left: 0; padding: 22px 0 0; }
+      .content { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 720px) {
+      .nav { min-height: 66px; padding: 12px 16px; align-items: flex-start; }
+      .nav-links { order: 3; width: 100%; overflow-x: auto; }
+      .nav-wrap .nav { flex-wrap: wrap; gap: 10px; }
+      .nav-end { margin-left: auto; }
+      .main { padding: 34px 16px 56px; }
+      h1 { font-size: clamp(38px, 13vw, 58px); }
+      .hero { padding-bottom: 32px; }
+      .hero-copy { font-size: 15px; }
+      .summary { grid-template-columns: repeat(2, 1fr); }
+      .summary-item { min-height: 112px; padding: 16px; }
+      .summary-item.primary { grid-column: span 2; }
+      .summary-value { margin-top: 12px; font-size: 27px; }
+      .section { padding: 18px; }
+      .section-head { align-items: flex-start; }
+      .section-head .btn { min-height: 40px; padding: 0 11px; }
+      .stage { grid-template-columns: 30px minmax(0,1fr); gap: 10px; padding: 8px 0; }
+      .stage-state { grid-column: 2; }
+      .actions { display: grid; grid-template-columns: 1fr 1fr; }
+      .actions .btn { width: 100%; }
+    }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { transition: none !important; animation: none !important; } }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="nav-wrap">
+      <nav class="nav" aria-label="主要導覽">
+        <a class="brand" href="#overview"><span class="brand-mark">R</span><span>Renovation Tracker<small>Project intelligence</small></span></a>
+        <div class="nav-links" role="tablist" aria-label="專案區域">
+          <a class="nav-link active" href="#overview">總覽</a>
+          <a class="nav-link" href="#timeline">時間軸</a>
+          <a class="nav-link" href="#budget">預算</a>
+          <a class="nav-link" href="#photos">照片</a>
+          <a class="nav-link" href="#warranties">保固</a>
+        </div>
+        <div class="nav-end"><span class="avatar" aria-label="使用者 Sean">SL</span></div>
+      </nav>
+    </header>
+
+    <main class="main" id="overview">
+      <section class="hero" aria-labelledby="project-title">
+        <div>
+          <div class="kicker">Project overview · 01</div>
+          <h1 id="project-title">我的<br>裝修工程</h1>
+          <p class="hero-copy">把每個施工階段、現場決策與完工後的保固，放在同一個清楚的工作脈絡裡。</p>
+          <div class="hero-meta"><span><strong>開始</strong> 2026-01-05</span><span><strong>預計完成</strong> 2026-02-06</span><span class="status">規劃中</span></div>
+          <div class="actions"><button class="btn btn-primary" id="share">產生唯讀分享連結</button><button class="btn btn-quiet" id="edit">編輯專案資訊</button></div>
+        </div>
+        <aside class="hero-side" aria-label="進度焦點">
+          <div class="side-label">目前完成度</div>
+          <div class="progress-line"><strong>0%</strong><span class="side-label">0 / 7 階段</span></div>
+          <div class="progress-track" role="progressbar" aria-label="工程完成度" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"><div class="progress-fill"></div></div>
+          <div class="next-action"><div class="side-label">下一個可執行動作</div><strong>補上第一個階段的實際進度</strong><p>完成後，總覽會開始反映工程的進展。</p></div>
+        </aside>
+      </section>
+
+      <section class="summary" aria-label="工程摘要">
+        <div class="summary-item primary"><div class="summary-label">工程進度</div><div class="summary-value">0%</div><div class="summary-note">尚未完成階段</div></div>
+        <div class="summary-item"><div class="summary-label">階段總數</div><div class="summary-value">7</div><div class="summary-note">已建立工程流程</div></div>
+        <div class="summary-item"><div class="summary-label">已投入預算</div><div class="summary-value">$0</div><div class="summary-note">尚未建立項目</div></div>
+        <div class="summary-item"><div class="summary-label">保固紀錄</div><div class="summary-value">0</div><div class="summary-note">驗收後可新增</div></div>
+      </section>
+
+      <div class="content">
+        <div class="stack">
+          <section class="section" aria-labelledby="stages-title">
+            <div class="section-head"><div><h2 id="stages-title">工程階段</h2><p>依照現場順序建立並更新每一個階段。</p></div><button class="btn btn-primary">新增階段</button></div>
+            <div class="stages">
+              <div class="stage current"><span class="stage-num">01</span><div><div class="stage-name">拆除</div><div class="stage-meta">2026-01-05 – 2026-01-09</div></div><span class="stage-state">待更新</span></div>
+              <div class="stage"><span class="stage-num">02</span><div><div class="stage-name">水電</div><div class="stage-meta">2026-01-10 – 2026-01-16</div></div><span class="stage-state">待開始</span></div>
+              <div class="stage"><span class="stage-num">03</span><div><div class="stage-name">泥作</div><div class="stage-meta">2026-01-17 – 2026-01-23</div></div><span class="stage-state">待開始</span></div>
+              <div class="stage"><span class="stage-num">04</span><div><div class="stage-name">木作</div><div class="stage-meta">2026-01-24 – 2026-01-28</div></div><span class="stage-state">待開始</span></div>
+              <div class="stage"><span class="stage-num">05</span><div><div class="stage-name">油漆</div><div class="stage-meta">2026-01-29 – 2026-02-01</div></div><span class="stage-state">待開始</span></div>
+              <div class="stage"><span class="stage-num">06</span><div><div class="stage-name">安裝</div><div class="stage-meta">2026-02-02 – 2026-02-04</div></div><span class="stage-state">待開始</span></div>
+              <div class="stage"><span class="stage-num">07</span><div><div class="stage-name">驗收</div><div class="stage-meta">2026-02-05 – 2026-02-06</div></div><span class="stage-state">待開始</span></div>
+            </div>
+          </section>
+          <section class="section timeline" id="timeline" aria-labelledby="timeline-title">
+            <div class="section-head"><div><h2 id="timeline-title">時間軸</h2><p>把工期與階段放在同一條時間線上。</p></div><span class="outline">2026 年 1–2 月</span></div>
+            <div class="timeline-grid" role="img" aria-label="七個工程階段的日期時間軸"><div class="head">階段</div><div class="head">1/5</div><div class="head">1/12</div><div class="head">1/19</div><div class="head">1/26</div><div class="head">2/2</div><div class="label">拆除</div><div class="bar next"></div><div></div><div></div><div></div><div></div><div class="label">水電</div><div></div><div class="bar next"></div><div></div><div></div><div></div><div class="label">泥作</div><div></div><div></div><div class="bar next"></div><div></div><div></div><div class="label">木作</div><div></div><div></div><div></div><div class="bar next"></div><div></div><div class="label">油漆</div><div></div><div></div><div></div><div></div><div class="bar next"></div></div>
+            <p class="footnote">目前尚未有已完成或進行中的階段。</p>
+          </section>
+        </div>
+        <div class="stack">
+          <section class="section" id="budget" aria-labelledby="budget-title"><div class="section-head"><div><h2 id="budget-title">預算</h2><p>在開始支出前，先建立費用基準。</p></div><button class="btn btn-primary">新增項目</button></div><div class="budget-total"><span>目前總支出</span><strong>$0</strong></div><div class="empty"><div><div class="empty-mark">$</div><strong>還沒有預算項目</strong><p>新增第一筆預算後，這裡會整理支出與分類。</p><button class="btn">建立預算項目</button></div></div></section>
+          <section class="section" id="photos" aria-labelledby="photos-title"><div class="section-head"><div><h2 id="photos-title">現場照片</h2><p>用影像留下每個階段的現場紀錄。</p></div><button class="btn btn-primary">新增照片</button></div><div class="empty"><div><div class="empty-mark">+</div><strong>還沒有照片</strong><p>完成第一筆施工紀錄後，可以從這裡上傳照片。</p><button class="btn">新增第一張照片</button></div></div></section>
+          <section class="section" aria-labelledby="schedule-title"><div class="section-head"><div><h2 id="schedule-title">近期工作</h2><p>需要提醒自己的現場事項。</p></div><button class="btn btn-primary">新增工作</button></div><div class="empty"><div><div class="empty-mark">—</div><strong>目前沒有待處理工作</strong><p>新增工作後，重要日期會在這裡集中顯示。</p><button class="btn">建立工作提醒</button></div></div></section>
+          <section class="section" id="warranties" aria-labelledby="warranties-title"><div class="section-head"><div><h2 id="warranties-title">保固</h2><p>驗收後集中管理設備與施工保固。</p></div><button class="btn btn-primary">新增保固</button></div><div class="empty"><div><div class="empty-mark">✓</div><strong>尚未建立保固紀錄</strong><p>工程完成後，可以追蹤廠商與到期日。</p><button class="btn">建立保固紀錄</button></div></div></section>
+        </div>
+      </div>
+    </main>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </div>
+  <script>
+    const toast = document.getElementById('toast');
+    const showToast = (message) => { toast.textContent = message; toast.classList.add('show'); window.setTimeout(() => toast.classList.remove('show'), 2200); };
+    document.getElementById('share').addEventListener('click', () => showToast('唯讀分享連結已複製'));
+    document.getElementById('edit').addEventListener('click', () => showToast('此原型保留編輯入口位置'));
+    document.querySelectorAll('.nav-link').forEach((link) => link.addEventListener('click', () => { document.querySelectorAll('.nav-link').forEach((item) => item.classList.remove('active')); link.classList.add('active'); }));
+  </script>
+</body>
+</html>

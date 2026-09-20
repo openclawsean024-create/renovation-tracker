@@ -44,7 +44,7 @@ export function ReadOnlyError({ error }: ReadOnlyErrorProps) {
           <p className="readonly-banner-body">
             本機 IndexedDB 未被讀取或寫入，可以回到編輯模式繼續使用。
           </p>
-          <div className="form-actions" style={{ marginTop: '0.5rem' }}>
+          <div className="form-actions form-actions--tight">
             <button
               type="button"
               className="btn"

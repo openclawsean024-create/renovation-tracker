@@ -85,11 +85,11 @@ describe('Responsive — AC-FR001-09', () => {
     // jsdom does not compute layout, so we statically assert the CSS rules
     // that guarantee no horizontal scrollbar at >=375px width (AC-FR001-09).
     expect(cssText).toMatch(/body\s*\{[^}]*overflow-x:\s*hidden/)
-    expect(cssText).toMatch(/\.gantt-wrapper\s*\{[^}]*overflow-x:\s*auto/)
+    expect(cssText).toMatch(/\.timeline-scroll\s*\{[^}]*overflow-x:\s*auto/)
     renderDashboard()
     await waitFor(() => expect(screen.getByTestId('add-stage')).toBeInTheDocument())
-    const wrapper = document.querySelector('.gantt-wrapper') as HTMLElement | null
+    const wrapper = document.querySelector('.timeline-scroll') as HTMLElement | null
     expect(wrapper).not.toBeNull()
-    expect(wrapper!.classList.contains('gantt-wrapper')).toBe(true)
+    expect(wrapper!.classList.contains('timeline-scroll')).toBe(true)
   })
 })
