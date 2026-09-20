@@ -81,6 +81,30 @@ html {
   scroll-padding-top: 140px;
 }
 
+/* Ensure anchor-targeted sections clear the sticky app-header on every
+ * viewport, regardless of which scroll-padding value the browser honors.
+ * Without this, #photos/#schedule/#warranties can scroll the heading
+ * directly under the sticky header on some browsers / on hashchange. */
+[id="overview"],
+[id="timeline"],
+[id="budget"],
+[id="photos"],
+[id="schedule"],
+[id="warranties"] {
+  scroll-margin-top: 140px;
+}
+
+@media (max-width: 767px) {
+  [id="overview"],
+  [id="timeline"],
+  [id="budget"],
+  [id="photos"],
+  [id="schedule"],
+  [id="warranties"] {
+    scroll-margin-top: 184px;
+  }
+}
+
 body {
   margin: 0;
   font-size: 14px;

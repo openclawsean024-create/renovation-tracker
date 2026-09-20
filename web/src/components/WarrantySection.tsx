@@ -149,7 +149,7 @@ export function WarrantySection() {
   )
 
   return (
-    <article className="support-section warranty-section" aria-labelledby={headingId}>
+    <article className="support-section warranty-section" id="warranties" aria-labelledby={headingId}>
       <header className="warranty-section-header">
         <h2 id={headingId}>保固紀錄</h2>
         <button

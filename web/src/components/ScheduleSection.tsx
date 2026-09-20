@@ -214,7 +214,7 @@ export function ScheduleSection({ stages }: ScheduleSectionProps) {
   const completedCount = schedules.filter((s) => s.completed).length
 
   return (
-    <article className="support-section schedule-section" aria-labelledby={headingId}>
+    <article className="support-section schedule-section" id="schedule" aria-labelledby={headingId}>
       <header className="schedule-section-header">
         <h2 id={headingId}>師傅排程</h2>
         <button

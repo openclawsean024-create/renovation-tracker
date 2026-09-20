@@ -48,7 +48,7 @@ export function BudgetSection() {
   )
 
   return (
-    <section className="section" aria-labelledby="budget-section-heading">
+    <section className="section" id="budget" aria-labelledby="budget-section-heading">
       <div className="budget-section-header">
         <div>
           <h2 id="budget-section-heading">預算追蹤</h2>

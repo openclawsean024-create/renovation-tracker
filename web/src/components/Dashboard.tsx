@@ -49,12 +49,47 @@ const NAV_LINKS = [
   { id: 'warranties', label: '保固' },
 ] as const
 
-function NavLink({ id, label, active }: { id: string; label: string; active: boolean }) {
+/**
+ * Renders an in-page anchor link for the editable dashboard nav.
+ *
+ * Why the explicit click handler:
+ * - The browser's built-in anchor jump relies on `scroll-padding-top` /
+ *   `scroll-margin-top` to clear the sticky header. When the hash is already
+ *   set to `#<id>` (e.g. user clicks the same nav link twice in a row) the
+ *   browser does NOT re-trigger the scroll — it silently does nothing. The
+ *   defensive handler below also calls `scrollIntoView` so the click is
+ *   always visible to the user, not just technically href-correct.
+ * - The handler also calls `setActiveSection` immediately so the
+ *   `aria-current="location"` highlight tracks the click even before the
+ *   IntersectionObserver fires (which can take a frame or two on slow DOMs).
+ * - `preventDefault()` is NOT called, so the URL still updates to `#<id>`
+ *   and the native back/forward + deep-link behavior continues to work.
+ */
+function NavLink({
+  id,
+  label,
+  active,
+  onNavigate,
+}: {
+  id: string
+  label: string
+  active: boolean
+  onNavigate: (id: string) => void
+}) {
+  function handleClick(e: React.MouseEvent<HTMLAnchorElement>) {
+    // Allow modifier-clicks (open in new tab, etc.) to behave normally.
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) {
+      return
+    }
+    onNavigate(id)
+  }
   return (
     <a
       className="nav-link"
       href={`#${id}`}
+      data-nav-target={id}
       aria-current={active ? 'location' : undefined}
+      onClick={handleClick}
     >
       {label}
     </a>
@@ -133,6 +168,46 @@ export function Dashboard({
     )
     sections.forEach((s) => observer.observe(s))
     return () => observer.disconnect()
+  }, [])
+
+  /**
+   * Defensive in-page navigation handler. The browser's built-in anchor jump
+   * handles the common case, but it has two known failure modes that the
+   * production bug surfaced:
+   *
+   * 1. Re-clicking the same nav link (hash already `#<id>`) is a no-op in
+   *    every browser — the page does not re-scroll. This is especially
+   *    noticeable on mobile where the user expects the tap to always feel
+   *    responsive.
+   * 2. Some browsers ignore `scroll-padding-top` on hashchange if the
+   *    sticky header height changes between renders (e.g. a header note
+   *    reflow). Calling `scrollIntoView` with the section's own
+   *    `scroll-margin-top` (set in CSS) guarantees the heading clears the
+   *    sticky header regardless.
+   *
+   * The handler also updates `activeSection` synchronously so the
+   * `aria-current="location"` highlight tracks the click immediately,
+   * instead of waiting for the IntersectionObserver to fire on the next
+   * animation frame.
+   */
+  const handleNavigate = useCallback((id: string) => {
+    setActiveSection(id)
+    if (typeof window === 'undefined') return
+    const target = document.getElementById(id)
+    if (target && typeof target.scrollIntoView === 'function') {
+      // `block: 'start'` aligns the section top with the viewport top, and
+      // the element's `scroll-margin-top` (set in CSS) keeps it clear of the
+      // sticky header. `behavior: 'auto'` (instant) avoids the smooth-scroll
+      // easing that some browsers skip on identical-hash clicks.
+      target.scrollIntoView({ block: 'start', behavior: 'auto' })
+    }
+    if (typeof window.history !== 'undefined' && typeof window.history.replaceState === 'function') {
+      try {
+        window.history.replaceState(null, '', `#${id}`)
+      } catch {
+        // Updating the URL is best-effort; the scroll above is what the user sees.
+      }
+    }
   }, [])
 
   const stageSummary = useMemo(() => summarizeStages(stages), [stages])
@@ -376,7 +451,13 @@ export function Dashboard({
           </div>
           <nav className="nav-row" aria-label="工程導覽">
             {NAV_LINKS.map((n) => (
-              <NavLink key={n.id} id={n.id} label={n.label} active={activeSection === n.id} />
+              <NavLink
+                key={n.id}
+                id={n.id}
+                label={n.label}
+                active={activeSection === n.id}
+                onNavigate={handleNavigate}
+              />
             ))}
           </nav>
         </div>

@@ -35,7 +35,7 @@ export function PhotoSection() {
   )
 
   return (
-    <section className="section" aria-labelledby="photo-section-heading">
+    <section className="section" id="photos" aria-labelledby="photo-section-heading">
       <div className="photo-section-header">
         <div>
           <h2 id="photo-section-heading">照片紀錄</h2>
