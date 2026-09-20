@@ -501,7 +501,7 @@ function ReadOnlyGantt({ project, stages }: { project: Project; stages: Stage[] 
         範圍：{displayDate(project.plannedStart)} ~ {displayDate(project.plannedEnd)}
         （共 {ganttLayout.totalDays} 天）
       </p>
-      <div className="gantt-wrapper">
+      <div className="timeline-scroll">
         <div className="gantt">
           <div className="gantt-header-row" aria-hidden="true">
             <div />
