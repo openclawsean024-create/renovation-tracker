@@ -41,6 +41,8 @@
 - 只有在 Sean 明確要求、milestone 已完成獨立驗收、部署目標已確認時，才可執行 Vercel deploy。
 - 本專案 Vercel 設定：Root Directory=`web`、Framework=`Vite`、Build Command=`npm run build`、Output Directory=`dist`、Install Command=`npm install`。
 - 每次 push 後必須確認 local HEAD 與 GitHub `main` 相同；每次 production deploy 必須把該 commit SHA 寫入 deployment metadata。
+- 每次 GitHub push 或 Vercel deploy 都必須同步更新 canonical Notion Project DB：`進度`／HEAD SHA、GitHub URL、Vercel URL、狀態與 Next Action 必須反映同一個 release；Notion 同步完成並驗證前，該 release 不算完成。
+- Release 順序固定為：獨立驗收 → commit → push → deploy → 更新 Notion → 驗證 GitHub／Vercel／Notion SHA；若 Notion connector 不可用，必須標記 release pending，不得開始下一個 milestone。
 - 不得 commit credentials、tokens、`.env`、`.env.local` 或 connection strings。Vercel 本機目錄與環境檔必須保持 ignored。
 
 ## 目前產品邊界
@@ -48,4 +50,3 @@
 - MVP 採 local-first IndexedDB；未經 SPEC 明確授權，不新增 backend、auth、cloud sync、R2/S3 或第三方資料服務。
 - Share 頁面必須 readonly，不能洩漏內部 IndexedDB key、原始 record id 或 photo blob。
 - 任何涉及 DB migration、auth、payments、secrets 或 infra deletion 的改動，都必須額外取得 risk approval 與人審。
-
