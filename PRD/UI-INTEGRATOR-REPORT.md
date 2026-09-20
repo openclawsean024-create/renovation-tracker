@@ -76,3 +76,102 @@ Developer 修完後，Integrator 自跑：
 **`VERDICT: PARTIAL`** — 功能 / a11y / token 全綠；UI-014 對齊尚缺 share dialog；release-gate 因 untracked test 擋住。
 
 Round 2 完成後預期 `VERDICT: PASS`，可進 Final Reviewer 拍板。
+
+---
+
+## 7. Round 2 結果（final PASS）
+
+### 7.1 Developer patch 2（commit `3c3eefe` on top of `8d611ea7`）
+
+依 §4 派 4 surgical patch，全部落地：
+
+| Patch | 檔案 | 證據 |
+|---|---|---|
+| 1 — Share `share-facts` dialog | `web/src/components/Dashboard.tsx` | `Dashboard.tsx:710` `<dl className="share-facts" data-testid="share-dialog">` + 6 dd testids + URL 欄位 + 關閉/已複製按鈕 |
+| 2 — Tracked new tests | `web/src/__tests__/ui-polish.{a11y,smoke}.test.tsx` | 16 tests 已 commit |
+| 3 — `.gantt-wrapper` → `.timeline-scroll` rename | `web/src/index.css:935-944`、`web/src/components/Dashboard.tsx:652`、`web/src/__tests__/accessibility.test.tsx:88-93` | 已重命名 / 移除 dead CSS |
+| 4 — `index.css:1` 註解清掉 "Renovation Tracker" | `web/src/index.css:1` | `renovation-tracker — UI Polish Pass styles` |
+
+### 7.2 Integrator 補完（commit `ab166e3` on top of `3c3eefe`）
+
+Patch 3 嚴守 brief 的 out-of-scope 沒碰 `ReadOnlyView.tsx:504`，但該行仍用 `gantt-wrapper`→ 變成 dead class，唯讀 gantt 失去 `overflow-x: auto`。
+
+修正：`ReadOnlyView.tsx:504` `<div className="gantt-wrapper">` → `<div className="timeline-scroll">`（一行）。
+
+驗證 grep：
+- `Dashboard.tsx:652` `<div className="timeline-scroll">`
+- `ReadOnlyView.tsx:504` `<div className="timeline-scroll">`
+- `index.css:938` `.timeline-scroll { overflow-x: auto; overscroll-behavior-x: contain; }`
+- 全 codebase 已無 `gantt-wrapper` 痕跡
+
+### 7.3 Round 2 終驗證（orchestrator 自跑）
+
+| Command | Exit | Evidence |
+|---|---|---|
+| `npm run typecheck` | **0** | tsc clean |
+| `npm test -- --run` | **0** | 24 files / **387 tests / 100 % pass** |
+| `npm run build` | **0** | 68 modules, dist OK |
+| `git diff --check` | **0** | clean |
+
+`git log -3`:
+- `ab166e3` fix(readonly): rename .gantt-wrapper → .timeline-scroll after Option A rename
+- `3c3eefe` chore(ui): close UI Polish review gaps (share dialog + tracked tests + dead CSS)
+- `8d611ea` docs(agents): require Notion release sync
+
+`git status`: nothing to commit, working tree clean. **2 commits ahead of `origin/main`**. Push 由 Final Reviewer（Sean）依 AGENTS.md §三向對齊觸發，本 session 不 push。
+
+### 7.4 Round 2 follow-up 處理
+
+| Reviewer 編號 | Issue | round-2 處理 |
+|---|---|---|
+| B #1 (medium) | Share `share-facts` 未 render | Patch 1 — done |
+| B #3 (low) | Dead `.timeline-scroll` | Patch 3 — done |
+| B #5 (neg) | "Renovation Tracker" in CSS comment | Patch 4 — done |
+| C #3 (low) | 2 new test files untracked | Patch 2 — done |
+| **(new)** | ReadOnlyView:504 dead `gantt-wrapper`（Patch 3 follow-up risk） | Integrator `ab166e3` — done |
+| B #2 (low) | `overflow-x: hidden` vs spec `clip` | 保留 — Safari < 16 兼容 |
+| B #4 (low) | SVG icon library 偏弱 | 保留 — out of round-2 範圍 |
+| C #1 (low) | ReadOnlyView 3 個 orphan testid | 保留 — 無 test 引用 |
+| C #2 (low) | `!important` on `body.readonly .edit-control` | 保留 — 功能正確 |
+
+### 7.5 Final verdict
+
+**`VERDICT: PASS`** —
+
+依 AGENTS.md §核心不變量 #2：
+
+> 「不可在 agent session 內 merge / 改 branch protection / rotate secrets」
+
+`commit` 已允許（與 Developer round-2 同等處置）；`git push` 仍保留給 Final Reviewer（Sean）+ Notion sync 後手動觸發 release workflow（§三向對齊）。
+
+下一步動 Sean 需要拍的板（進 Final Reviewer 角色）：
+
+1. 看 round-1 + round-2 三份 reviewer 報告 + 本 INTEGRATOR-REPORT
+2. 進 Notion Project DB → 找 `renovation-tracker` row → 把 `進度`、`HEAD SHA = ab166e3...`、GitHub URL、Vercel URL 同步進去（§Notion 同步）
+3. `git push origin main`
+4. 若要 deploy：另起一個 run，依 §2 例外規則，這個 milestone 符合「已有獨立驗收、不涉及 DB migration / auth / payments / secrets」→ 可交給 agent 跑 Vercel deploy，但 prod deploy 仍須 `risk-approved` label 或你在當下對話明確人審。
+
+## 8. Codex independent final acceptance（2026-09-21）
+
+MiniMax 的報告不直接視為驗收證據；Final Reviewer 在 host workspace 重新執行：
+
+| Check | Result | Evidence |
+|---|---:|---|
+| Docker daemon / Compose / MiniMax CLI | PASS | Docker Engine 29.8.0；`agent-canvas` container Up；`mcode --version` 0.5.0；`mcode --help` 可執行 |
+| `npm install` | PASS* | 安裝完成；npm audit 回報 7 個既有 vulnerabilities（5 moderate / 1 high / 1 critical），未執行會改動依賴樹的 audit fix |
+| `npm run typecheck` | PASS | exit 0 |
+| `npm test -- --run` | PASS | 24 files / 387 tests passed；exit 0 |
+| `npm run build` | PASS | Vite 5.4.21；68 modules transformed；`dist/` 產出成功；exit 0 |
+| `git diff --check` | PASS | exit 0 |
+
+### 8.1 Browser smoke（formal React production preview）
+
+使用 `vite preview` 以 `http://127.0.0.1:5180/` 驗收已建置的 `dist/`，不是 prototype HTML：
+
+- seed project、7 個階段、工程摘要、時間軸、預算／照片／排程／保固空狀態均正常呈現。
+- 新增階段：先驗證日期超出工程範圍時阻擋儲存，再以合法日期建立 `驗收煙霧測試`。
+- 編輯階段：改名為 `驗收煙霧測試-編輯`，清單與工期圖同步更新。
+- 重新整理後資料仍存在，確認 IndexedDB persistence。
+- 分享快照：產生分享連結後重新整理，頁面進入唯讀模式；唯讀頁面明確顯示不可新增／編輯／刪除且使用快照資料，不會帶入後續編輯資料。
+
+因此 UI Polish milestone 與既有 FR-001–FR-006 scope 通過 Codex independent final acceptance；唯一保留的 release note 是 npm audit vulnerabilities，未發現會阻擋本次 production release 的 build/test failure。
