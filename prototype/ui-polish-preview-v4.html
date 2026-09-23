@@ -1,0 +1,619 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src 'none'; connect-src 'none'; form-action 'none'; base-uri 'none'">
+  <title>我的裝修工程 · Renovation Tracker · v4</title>
+  <style>
+    /* v1.2 mobile contract. Mobile is the base composition; desktop enhances it.
+       MOB-01–04: frame, three-level header, wrapped navigation, six summaries.
+       MOB-05–07: vertical stage records, single-column domains, contained Gantt.
+       MOB-08–12: bounded dialogs, 44px controls, wrapping, readonly, state review.
+       UI-MOB-007 remains a human design gate; this file does not implement persistence. */
+    :root {
+      --bg:#f5f7fb; --surface:#fff; --subtle:#f8fafc; --ink:#172033;
+      --muted:#667085; --border:#e4e7ec; --border-strong:#cfd5df;
+      --primary:#1f4d8f; --primary-hover:#173d73; --primary-soft:#eaf1fb;
+      --accent:#c98727; --accent-soft:#fff5df; --success:#19704a; --success-soft:#edf7f1;
+      --warning:#9a6700; --danger:#b42318; --danger-soft:#fff0ed;
+      --navy:#172b47; --on-navy:#d8e3f0; --control:#8995a6;
+      --r-sm:8px; --r-md:12px; --r-lg:16px;
+      --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:20px; --s6:24px; --s8:32px; --s10:40px;
+      --shadow:0 1px 2px rgb(23 32 51 / 3%); --nav-height:106px;
+      font-family:system-ui,-apple-system,"Segoe UI","PingFang TC","Microsoft JhengHei",sans-serif;
+      color:var(--ink); background:var(--bg); font-synthesis:none;
+    }
+    * { box-sizing:border-box; }
+    html { scroll-behavior:smooth; scroll-padding-top:calc(var(--nav-height) + 16px); }
+    body { margin:0; font-size:14px; line-height:1.5; overflow-wrap:anywhere; }
+    h1,h2,h3,p,dl,dd,figure { margin:0; }
+    h1 { font-size:24px; line-height:1.35; font-weight:650; letter-spacing:-.035em; }
+    h2 { font-size:20px; line-height:1.4; font-weight:650; letter-spacing:-.025em; }
+    h3 { font-size:16px; line-height:1.5; font-weight:650; }
+    a { color:var(--primary); text-decoration:none; }
+    button,input,select,textarea { font:inherit; }
+    button,a,input,select,textarea,summary { touch-action:manipulation; }
+    button { cursor:pointer; }
+    button,a,summary { -webkit-tap-highlight-color:transparent; }
+    button:disabled { cursor:not-allowed; color:var(--muted); background:var(--border); border-color:var(--border-strong); }
+    :focus-visible { outline:2px solid var(--primary); outline-offset:3px; }
+    [hidden] { display:none !important; }
+    .sr-only { position:absolute; width:1px; height:1px; margin:-1px; padding:0; overflow:hidden; clip-path:inset(50%); border:0; }
+    .skip { position:fixed; inset:8px auto auto 16px; z-index:100; min-height:44px; padding:12px 16px; color:var(--surface); background:var(--primary); transform:translateY(-150%); }
+    .skip:focus { transform:translateY(0); }
+    .wrap { width:100%; max-width:1280px; margin-inline:auto; padding-inline:16px; }
+    .muted { color:var(--muted); }
+    .numeric,dd,time { font-variant-numeric:tabular-nums; }
+    .icon { flex-shrink:0; width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+    .btn { min-width:44px; min-height:44px; display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:10px 12px; line-height:1.5; font-weight:600; color:var(--ink); background:var(--surface); border:1px solid var(--control); border-radius:var(--r-sm); transition:background .15s,color .15s; }
+    .btn:hover:not(:disabled) { border-color:var(--primary); color:var(--primary); background:var(--primary-soft); }
+    .btn:active:not(:disabled) { background:var(--border); }
+    .btn.primary { color:var(--surface); background:var(--primary); border-color:var(--primary); }
+    .btn.primary:hover:not(:disabled) { color:var(--surface); background:var(--primary-hover); }
+    .btn.quiet { color:var(--primary); border-color:transparent; background:transparent; }
+    .btn.danger { color:var(--danger); }
+    .btn.danger:hover:not(:disabled) { border-color:var(--danger); background:var(--danger-soft); }
+    .btn.icon-only { width:44px; height:44px; padding:10px; flex-shrink:0; }
+    .actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+    .actions > * { min-width:0; }
+    .status { display:inline-flex; align-items:center; gap:6px; font-size:14px; font-weight:550; color:var(--muted); }
+    .status.planning,.status.warning { color:var(--warning); }
+    .status.current { color:var(--primary); }
+    .status.complete { color:var(--success); }
+    .status.blocked { color:var(--danger); }
+    .status-symbol { font-size:16px; line-height:1.5; flex-shrink:0; }
+
+    /* Header scrolls out of the way; only the compact section navigation sticks. */
+    .app-header { background:var(--surface); border-bottom:1px solid var(--border); }
+    .preview-strip { display:flex; align-items:center; justify-content:space-between; gap:8px; color:var(--muted); border-bottom:1px solid var(--border); }
+    .preview-strip a { display:flex; align-items:center; min-height:44px; min-width:44px; font-weight:550; }
+    .header-content { display:grid; gap:16px; padding-block:20px; }
+    .project-identity { display:flex; align-items:flex-start; gap:12px; min-width:0; }
+    .project-identity > div { min-width:0; }
+    .mark { display:grid; place-items:center; flex-shrink:0; width:44px; height:44px; margin-top:4px; background:var(--navy); color:var(--surface); border-radius:var(--r-sm); }
+    .mark .icon { width:26px; height:26px; }
+    .product-label { font-size:14px; font-weight:650; letter-spacing:-.02em; margin-bottom:4px; }
+    .project-meta { display:flex; flex-wrap:wrap; align-items:center; gap:8px 16px; }
+    .project-meta .status { padding:4px 8px; background:var(--accent-soft); border-radius:4px; }
+    .project-dates { display:flex; flex-wrap:wrap; align-items:center; gap:4px 8px; }
+    .header-actions { width:100%; }
+    .header-actions .primary { grid-column:1 / -1; }
+    .header-actions .secondary { grid-column:1 / -1; }
+    .section-nav { position:sticky; top:0; z-index:20; background:var(--surface); border-bottom:1px solid var(--border-strong); }
+    .nav-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:4px; padding-block:6px; }
+    .nav-link { min-width:44px; min-height:44px; display:flex; align-items:center; justify-content:center; gap:8px; padding:8px 4px; color:var(--muted); font-weight:600; border-radius:var(--r-sm); }
+    .nav-link:hover { color:var(--primary); background:var(--subtle); }
+    .nav-link[aria-current] { color:var(--primary); background:var(--primary-soft); box-shadow:inset 0 -2px var(--primary); }
+    .nav-link .icon { width:17px; height:17px; }
+
+    main { padding-block:24px; }
+    main > * + * { margin-top:24px; }
+    section,article,.section-head > div { min-width:0; }
+    .section-title-row { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
+    .summary { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); border:1px solid var(--border); background:var(--surface); border-radius:var(--r-lg); box-shadow:var(--shadow); }
+    .metric { min-width:0; padding:16px; border-bottom:1px solid var(--border); }
+    .metric dt { color:var(--muted); margin-bottom:8px; }
+    .metric dd { font-size:28px; line-height:1.2; font-weight:600; letter-spacing:-.04em; }
+    .metric dd small { font-size:14px; font-weight:400; letter-spacing:0; margin-left:6px; color:var(--muted); }
+    .metric:nth-child(2),.metric:nth-child(4) { border-right:1px solid var(--border); }
+    .metric.completion { grid-column:1 / -1; background:var(--primary-soft); border-radius:var(--r-lg) var(--r-lg) 0 0; border-top:3px solid var(--primary); display:grid; grid-template-columns:1fr auto; align-items:center; gap:8px 16px; }
+    .completion dt { color:var(--primary); margin:0; font-weight:600; }
+    .completion dd { color:var(--primary); font-size:32px; }
+    .completion p { color:var(--muted); grid-column:1 / -1; }
+    .progress { grid-column:1 / -1; height:6px; display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:4px; }
+    .progress span { border:1px solid var(--control); border-radius:2px; background:var(--surface); }
+    .metric.dates { grid-column:1 / -1; border:0; }
+    .dates dd { display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; font-size:16px; font-weight:500; letter-spacing:0; }
+    .dates dd span { display:flex; gap:8px; align-items:center; }
+    .dates dd small { margin:0; }
+    .next-stage { margin-top:12px; padding:16px; border-left:3px solid var(--accent); display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:12px; background:var(--surface); border-radius:0 var(--r-sm) var(--r-sm) 0; }
+    .next-stage p { margin-top:4px; color:var(--muted); }
+    .section { background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); box-shadow:var(--shadow); padding:16px; }
+    .section-head { display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:16px; padding-bottom:16px; }
+    .section-head p { color:var(--muted); margin-top:4px; }
+    .heading-line { display:flex; align-items:center; flex-wrap:wrap; gap:8px 12px; }
+    .heading-line > .icon { color:var(--primary); }
+    .section-tools { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); width:100%; gap:8px; }
+    .section-head > .btn { width:100%; }
+    .count { color:var(--muted); font-weight:400; }
+    .stage-list { margin:0; padding:0; list-style:none; }
+    .stage-row { padding:20px 0; border-top:1px solid var(--border); display:grid; gap:12px; }
+    .stage-row:last-child { padding-bottom:0; }
+    .stage-heading { display:flex; align-items:flex-start; flex-wrap:wrap; gap:8px 12px; }
+    .stage-name { display:flex; align-items:baseline; gap:8px; min-width:0; flex:1 1 130px; }
+    .stage-number { color:var(--muted); font-variant-numeric:tabular-nums; font-size:14px; }
+    .stage-name h3 { min-width:0; }
+    .stage-period { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+    .stage-period dt { color:var(--muted); margin-bottom:4px; }
+    .stage-period dd { font-weight:550; }
+    .stage-note { color:var(--muted); border-left:2px solid var(--border-strong); padding-left:12px; }
+    .stage-row .actions .danger { border-color:var(--border-strong); }
+    .empty { padding:20px 16px; border:1px dashed var(--control); border-radius:var(--r-md); background:var(--subtle); }
+    .empty h3 { margin-bottom:4px; }
+    .empty p { color:var(--muted); }
+    .empty .btn { width:100%; margin-top:16px; }
+    .domain-grid { display:grid; grid-template-columns:minmax(0,1fr); gap:24px; }
+    .budget-totals { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); border-block:1px solid var(--border); margin-bottom:20px; }
+    .budget-totals > div { padding:16px 0; min-width:0; }
+    .budget-totals > div:first-child { grid-column:1 / -1; border-bottom:1px solid var(--border); }
+    .budget-totals dt { color:var(--muted); margin-bottom:8px; }
+    .budget-totals dd { font-size:24px; line-height:1.3; font-weight:600; letter-spacing:-.035em; }
+    .budget-totals > div:first-child dd { font-size:32px; }
+    .budget-totals dd small { font-size:14px; font-weight:400; color:var(--muted); letter-spacing:0; margin-right:8px; }
+    .photo-empty { padding-block:24px; }
+    .photo-empty > .icon { width:28px; height:28px; color:var(--muted); margin-bottom:12px; }
+    .photo-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-top:16px; }
+    .photo-tile { min-width:0; border:1px solid var(--border-strong); border-radius:var(--r-sm); background:var(--surface); }
+    .photo-slot { width:100%; aspect-ratio:4 / 3; background:var(--subtle); border-bottom:1px solid var(--border); border-radius:var(--r-sm) var(--r-sm) 0 0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; color:var(--muted); padding:8px; text-align:center; }
+    .photo-copy { padding:12px; }
+    .photo-copy p { margin-top:4px; color:var(--muted); }
+    .photo-copy .btn { width:100%; margin-top:12px; padding-inline:6px; }
+    .notice { padding:12px 16px; border:1px solid var(--control); border-radius:var(--r-sm); background:var(--subtle); }
+    .notice p + p { margin-top:8px; }
+    .notice.warning { color:var(--warning); background:var(--accent-soft); border-color:var(--warning); }
+    .notice.error { color:var(--danger); background:var(--danger-soft); border-color:var(--danger); }
+    .notice.success { color:var(--success); background:var(--success-soft); border-color:var(--success); }
+    .domain-foot { padding-top:16px; color:var(--muted); }
+    .readonly-banner { display:grid; gap:12px; border:1px solid var(--primary); border-left-width:3px; border-radius:var(--r-md); background:var(--primary-soft); padding:16px; margin-bottom:24px; }
+    .readonly-banner p { margin-top:4px; }
+    body.readonly .edit-control { display:none !important; }
+    body.readonly .stage-row { padding-bottom:20px; }
+
+    /* Daily cells stay 32px wide. Sticky labels remain in the same scroll surface. */
+    .gantt-intro { display:flex; align-items:center; flex-wrap:wrap; gap:8px 16px; margin-bottom:16px; }
+    .gantt-intro p { color:var(--muted); }
+    .gantt-scroll { max-width:100%; overflow-x:auto; overscroll-behavior-x:contain; border:1px solid var(--border-strong); border-radius:var(--r-sm); scrollbar-color:var(--control) var(--subtle); }
+    .gantt-scroll:focus-visible { outline-offset:3px; }
+    .gantt-grid { display:grid; grid-template-columns:112px repeat(33,32px); width:1168px; position:relative; }
+    .gantt-corner { grid-column:1; grid-row:1 / 3; display:flex; align-items:center; }
+    .gantt-label,.gantt-corner { position:sticky; left:0; z-index:3; padding:12px; background:var(--surface); border-right:1px solid var(--control); border-bottom:1px solid var(--border); }
+    .gantt-label { grid-column:1; display:flex; flex-direction:column; justify-content:center; min-height:76px; }
+    .gantt-label strong { font-weight:600; }
+    .gantt-label span { color:var(--muted); margin-top:4px; }
+    .gantt-month { padding:8px 12px; background:var(--subtle); border-bottom:1px solid var(--border); font-weight:550; }
+    .gantt-day { padding:8px 0; text-align:center; color:var(--muted); border-right:1px solid var(--border); border-bottom:1px solid var(--border); }
+    .gantt-cell { min-height:76px; border-right:1px solid var(--border); border-bottom:1px solid var(--border); }
+    .weekend { background:var(--subtle); }
+    .gantt-bar { align-self:center; z-index:1; margin:0 2px; min-height:44px; display:flex; flex-direction:column; justify-content:center; padding:4px 6px; color:var(--primary); background:var(--primary-soft); border:1px solid var(--primary); border-left-width:3px; border-radius:4px; font-size:14px; line-height:1.5; }
+    .gantt-footer { display:flex; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-top:16px; align-items:center; }
+    .gantt-footer p { color:var(--muted); flex:1 1 200px; }
+    .gantt-controls { display:flex; gap:8px; }
+
+    /* Review tools are isolated from product data and never enter a share snapshot. */
+    .review { padding:16px; border:1px solid var(--border-strong); border-radius:var(--r-md); background:var(--surface); }
+    .review summary { cursor:pointer; min-height:44px; padding-block:10px; font-weight:600; color:var(--primary); }
+    .review-content { border-top:1px solid var(--border); padding-top:16px; }
+    .review-content > * + * { margin-top:16px; }
+    .review-buttons { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+    .review-buttons .btn[aria-pressed="true"] { color:var(--primary); background:var(--primary-soft); border-color:var(--primary); }
+    .state-samples { display:grid; gap:12px; }
+    .state-samples > div { display:flex; flex-wrap:wrap; align-items:center; gap:8px 16px; border-top:1px solid var(--border); padding-top:12px; }
+    .state-samples dt { font-weight:600; min-width:70px; }
+    .state-samples dd { display:flex; flex-wrap:wrap; gap:8px 16px; }
+    .loading-lines { display:grid; gap:12px; padding:24px 0; }
+    .loading-lines span { height:16px; background:var(--border); border-radius:4px; }
+    .loading-lines span:nth-child(2) { width:70%; }
+    .footer { color:var(--muted); padding-bottom:env(safe-area-inset-bottom); }
+    .footer p + p { margin-top:8px; }
+
+    /* Header and action footer stay reachable while only the middle scrolls. */
+    dialog { width:min(calc(100% - 32px),520px); max-height:calc(100dvh - 32px); margin:auto; padding:0; color:var(--ink); background:var(--surface); border:1px solid var(--border-strong); border-radius:var(--r-lg); box-shadow:0 24px 80px rgb(23 32 51 / 24%); }
+    dialog[open] { display:flex; flex-direction:column; }
+    dialog::backdrop { background:rgb(23 32 51 / 48%); }
+    body:has(dialog[open]) { overflow:hidden; }
+    .dialog-head { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:16px; border-bottom:1px solid var(--border); flex-shrink:0; }
+    .dialog-head h2 { min-width:0; font-size:20px; }
+    .dialog-body { padding:16px; min-height:0; overflow-y:auto; overscroll-behavior:contain; }
+    .dialog-body > * + * { margin-top:16px; }
+    .dialog-foot { padding:16px; border-top:1px solid var(--border); flex-shrink:0; background:var(--surface); }
+    .form-grid { display:grid; grid-template-columns:minmax(0,1fr); gap:16px; }
+    .field { display:flex; flex-direction:column; gap:8px; min-width:0; font-weight:550; }
+    .field.full { grid-column:1 / -1; }
+    input,select,textarea { min-height:44px; min-width:0; width:100%; max-width:100%; padding:10px 12px; border:1px solid var(--control); border-radius:var(--r-sm); background:var(--surface); color:var(--ink); font-size:16px; line-height:1.5; font-weight:400; }
+    input[type="date"] { display:block; appearance:none; }
+    input[type="file"] { padding:8px; font-size:14px; }
+    input::file-selector-button { font:inherit; min-height:44px; border:1px solid var(--control); border-radius:4px; padding:8px; margin:0 8px 0 0; background:var(--subtle); color:var(--ink); }
+    textarea { resize:vertical; min-height:100px; }
+    [aria-invalid="true"] { border:2px solid var(--danger); }
+    .field-error { font-size:14px; font-weight:400; color:var(--danger); }
+    .form-hint { color:var(--muted); }
+    .share-facts > div { padding-block:12px; border-bottom:1px solid var(--border); display:grid; grid-template-columns:1fr; gap:4px; }
+    .share-facts dt { color:var(--muted); }
+    .share-facts dd { font-weight:550; }
+    #toast { position:fixed; z-index:80; bottom:16px; left:16px; right:16px; max-width:520px; margin-inline:auto; box-shadow:var(--shadow); }
+    @media (min-width:390px) {
+      .header-actions .primary,.header-actions .secondary { grid-column:auto; }
+    }
+    @media (min-width:768px) {
+      .wrap { padding-inline:24px; }
+      .header-content { grid-template-columns:minmax(0,1fr) auto; gap:12px 24px; padding-block:24px; }
+      .project-identity { grid-column:1; }
+      .project-meta { grid-column:1; }
+      .header-actions { grid-column:2; grid-row:1 / 3; align-self:center; grid-template-columns:1fr; }
+      h1 { font-size:30px; }
+      .nav-grid { grid-template-columns:repeat(6,minmax(0,1fr)); gap:12px; padding-block:8px; }
+      .nav-link { padding-inline:12px; }
+      .summary { grid-template-columns:repeat(3,minmax(0,1fr)); }
+      .metric.completion { grid-column:auto; border-radius:var(--r-lg) 0 0 0; border-top:0; border-left:3px solid var(--primary); }
+      .metric { border-right:1px solid var(--border); }
+      .metric:nth-child(3) { border-right:0; }
+      .metric:nth-child(4),.metric:nth-child(5) { border-bottom:0; }
+      .metric.dates { grid-column:auto; }
+      .dates dd { flex-direction:column; }
+      .next-stage { grid-template-columns:minmax(0,1fr) auto; }
+      .section { padding:24px; }
+      .section-head > .btn { width:auto; }
+      .section-tools { width:auto; }
+      .stage-row { grid-template-columns:minmax(0,1fr) minmax(230px,1fr) 168px; gap:12px 20px; align-items:center; }
+      .stage-heading { display:block; }
+      .stage-heading .status { margin-top:4px; padding-left:28px; }
+      .stage-note { grid-column:1 / -1; grid-row:2; }
+      .stage-period { grid-column:2; grid-row:1; }
+      .stage-row > .actions { grid-column:3; grid-row:1; }
+      .domain-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+      .domain-grid .section-head > .btn { width:100%; }
+      .budget-totals dd { font-size:28px; }
+      .photo-empty { min-height:260px; display:flex; flex-direction:column; justify-content:center; }
+      .readonly-banner { grid-template-columns:minmax(0,1fr) auto; align-items:center; }
+      .review-buttons { grid-template-columns:repeat(3,minmax(0,1fr)); }
+      .form-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+      .dialog-head,.dialog-body,.dialog-foot { padding:20px 24px; }
+      .share-facts > div { grid-template-columns:120px minmax(0,1fr); gap:16px; }
+    }
+    @media (min-width:1200px) {
+      .wrap { padding-inline:32px; }
+      .header-actions { grid-template-columns:repeat(2,minmax(0,1fr)); }
+      .summary { grid-template-columns:1.35fr repeat(4,minmax(0,1fr)) 1.65fr; }
+      .metric { border-bottom:0; padding:20px; }
+      .metric.completion { border-radius:var(--r-lg) 0 0 var(--r-lg); }
+      .metric:nth-child(3) { border-right:1px solid var(--border); }
+      .completion dd { grid-column:1; grid-row:2; }
+      .completion p { font-size:14px; }
+      .metric dd { font-size:30px; }
+      .metric.dates dd { font-size:16px; }
+      .dates dd span { justify-content:space-between; }
+      .stage-row { grid-template-columns:minmax(0,1.2fr) minmax(300px,1fr) 220px; }
+      .stage-heading { display:flex; align-items:center; }
+      .stage-heading .status { padding:0; margin:0; }
+      .domain-grid .section-head > .btn { width:auto; }
+    }
+    @media (prefers-reduced-motion:reduce) {
+      html { scroll-behavior:auto; }
+      *,*::before,*::after { animation:none !important; transition:none !important; }
+    }
+    @media (forced-colors:active) {
+      .btn,.progress span,.gantt-bar,.mark { border:1px solid ButtonText; }
+      .nav-link[aria-current] { outline:2px solid Highlight; outline-offset:-2px; }
+    }
+  </style>
+</head>
+<body>
+  <svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+    <symbol id="i-mark" viewBox="0 0 24 24"><path d="M4 21V3h9v8H4m9 0 7 10M13 3h7v8h-7M4 21h7v-6H4"/></symbol>
+    <symbol id="i-overview" viewBox="0 0 24 24"><path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z"/></symbol>
+    <symbol id="i-stages" viewBox="0 0 24 24"><path d="M4 4v16M9 5h11M9 12h8M9 19h11"/><circle cx="4" cy="5" r="2"/><circle cx="4" cy="12" r="2"/></symbol>
+    <symbol id="i-budget" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 11h2m4 0h2M8 15h2m4 0h2M8 18h2m4 0h2"/></symbol>
+    <symbol id="i-photo" viewBox="0 0 24 24"><path d="M3 7h4l2-3h6l2 3h4v13H3z"/><circle cx="12" cy="13" r="4"/></symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18m-13 4h3m3 0h2m-8 3h3"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="m12 3 8 3v6c0 4-4 7-8 9-4-2-8-5-8-9V6zM8 12l3 3 5-6"/></symbol>
+    <symbol id="i-share" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m9 10 6-3m-6 7 6 3"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4 12h15m-6-6 6 6-6 6"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+  </defs></svg>
+  <a class="skip" href="#main">跳至主要內容</a>
+  <header class="app-header">
+    <div class="wrap">
+      <div class="preview-strip"><span>v4 · 離線視覺原型</span><a href="#review" id="review-link">檢視原型狀態 ↗</a></div>
+      <div class="header-content">
+        <div class="project-identity"><span class="mark"><svg class="icon" aria-hidden="true"><use href="#i-mark"/></svg></span><div><p class="product-label">Renovation Tracker</p><h1 id="project-title" data-testid="project-name">我的裝修工程</h1></div></div>
+        <div class="project-meta"><span class="status planning"><span aria-hidden="true">○</span>規劃中</span><p class="project-dates"><span class="muted">計畫</span><time datetime="2026-01-05">2026.01.05</time><span aria-label="至">→</span><time datetime="2026-02-06">2026.02.06</time></p></div>
+        <div class="actions header-actions edit-control"><button class="btn primary" id="share" data-testid="generate-share"><svg class="icon" aria-hidden="true"><use href="#i-share"/></svg>產生唯讀分享</button><button class="btn secondary" data-form="project">更新工程狀態</button></div>
+      </div>
+    </div>
+  </header>
+  <nav class="section-nav" aria-label="工程導覽"><div class="wrap nav-grid">
+    <a class="nav-link" href="#overview" aria-current="location"><svg class="icon" aria-hidden="true"><use href="#i-overview"/></svg>總覽</a>
+    <a class="nav-link" href="#timeline"><svg class="icon" aria-hidden="true"><use href="#i-stages"/></svg>階段</a>
+    <a class="nav-link" href="#budget"><svg class="icon" aria-hidden="true"><use href="#i-budget"/></svg>預算</a>
+    <a class="nav-link" href="#photos"><svg class="icon" aria-hidden="true"><use href="#i-photo"/></svg>照片</a>
+    <a class="nav-link" href="#schedule"><svg class="icon" aria-hidden="true"><use href="#i-calendar"/></svg>排程</a>
+    <a class="nav-link" href="#warranties"><svg class="icon" aria-hidden="true"><use href="#i-shield"/></svg>保固</a>
+  </div></nav>
+  <main class="wrap" id="main" tabindex="-1">
+    <aside class="readonly-banner" id="readonly-banner" hidden aria-label="唯讀模式"><div><strong>唯讀分享 · 畫面預覽</strong><p>顯示分享當下的資料；無法新增、編輯或刪除。此原型未產生分享連結。</p></div><button class="btn" id="leave-readonly">返回編輯預覽</button></aside>
+    <section id="overview" aria-labelledby="summary-heading" tabindex="-1">
+      <div class="section-title-row"><h2 id="summary-heading">工程摘要</h2><span class="muted">7 個階段已排定</span></div>
+      <dl class="summary" aria-label="工程摘要數值">
+        <div class="metric completion"><dt>工程完成度</dt><dd data-testid="percent-complete">0%</dd><div class="progress" role="progressbar" aria-label="工程完成度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div><p>尚無已完成的階段</p></div>
+        <div class="metric"><dt>階段總數</dt><dd><span data-testid="total-stages">7</span><small>個</small></dd></div>
+        <div class="metric"><dt>已完成</dt><dd><span data-testid="completed-stages">0</span><small>個</small></dd></div>
+        <div class="metric"><dt>進行中</dt><dd><span data-testid="in-progress-stages">0</span><small>個</small></dd></div>
+        <div class="metric"><dt>阻塞</dt><dd><span data-testid="blocked-stages">0</span><small>個</small></dd></div>
+        <div class="metric dates"><dt>計畫日期</dt><dd><span><small>開始</small><time datetime="2026-01-05">2026-01-05</time></span><span><small>完成</small><time datetime="2026-02-06">2026-02-06</time></span></dd></div>
+      </dl>
+      <aside class="next-stage"><div><strong>下一步 · 確認拆除階段</strong><p>01.05–01.09 · 尚未開始</p></div><button class="btn quiet edit-control" data-stage="0" aria-label="更新拆除階段">更新<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button></aside>
+    </section>
+    <section class="section" id="timeline" aria-labelledby="stages-title" tabindex="-1">
+      <header class="section-head"><div><div class="heading-line"><h2 id="stages-title">階段與工期</h2><span class="count" data-testid="stage-section-count">7 個階段</span></div><p>依施工順序檢查日期與狀態。</p></div><div class="section-tools"><a class="btn" href="#gantt-section">查看工期圖 ↓</a><button class="btn primary edit-control" data-form="stage" data-testid="add-stage"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg>新增階段</button></div></header>
+      <div id="stage-loading" hidden role="status" aria-live="polite"><p>正在載入階段…</p><div class="loading-lines" aria-hidden="true"><span></span><span></span><span></span></div></div>
+      <ol class="stage-list" id="stage-list"></ol>
+    </section>
+    <div class="domain-grid">
+      <section class="section" id="budget" aria-labelledby="budget-section-heading" tabindex="-1">
+        <header class="section-head"><div><div class="heading-line"><svg class="icon" aria-hidden="true"><use href="#i-budget"/></svg><h2 id="budget-section-heading">預算追蹤</h2></div><p>預算、實際支出與付款狀態。</p></div><button class="btn edit-control" data-form="budget" data-testid="add-budget">＋ 新增預算</button></header>
+        <dl class="budget-totals" data-testid="budget-summary"><div><dt>預算總額</dt><dd data-testid="budget-summary-planned"><small>NT$</small>0</dd></div><div><dt>實際支出</dt><dd data-testid="budget-summary-actual"><small>NT$</small>0</dd></div><div><dt>剩餘金額</dt><dd data-testid="budget-summary-remaining"><small>NT$</small>0</dd></div></dl>
+        <div class="empty"><h3>尚未建立預算項目</h3><p>新增項目與分類，填入預算及實際金額後，即可對照差額。</p></div><p class="domain-foot">目前沒有費用紀錄；金額以新臺幣顯示。</p>
+      </section>
+      <section class="section" id="photos" aria-labelledby="photo-section-heading" tabindex="-1">
+        <header class="section-head"><div><div class="heading-line"><svg class="icon" aria-hidden="true"><use href="#i-photo"/></svg><h2 id="photo-section-heading">現場照片</h2></div><p>施工前、施工中與完工後的紀錄。</p></div><button class="btn edit-control" data-form="photo" data-testid="add-photo">＋ 新增照片</button></header>
+        <div class="empty photo-empty" id="photo-empty"><svg class="icon" aria-hidden="true"><use href="#i-photo"/></svg><h3>尚無現場照片</h3><p>加入照片並指定階段，保留拍攝日期與現場說明。</p></div>
+        <div id="photo-layout" hidden><p class="notice">縮圖版面檢視：以下是空圖片槽，非工程照片，也未新增任何照片紀錄。</p><div class="photo-grid">
+          <figure class="photo-tile"><div class="photo-slot"><svg class="icon" aria-hidden="true"><use href="#i-photo"/></svg><span>無原始照片</span></div><figcaption class="photo-copy"><strong>施工前</strong><p>拆除階段</p><p>尚未提供拍攝日期與照片說明。</p><button class="btn" data-photo-preview="施工前">檢視空圖片槽</button></figcaption></figure>
+          <figure class="photo-tile"><div class="photo-slot"><svg class="icon" aria-hidden="true"><use href="#i-photo"/></svg><span>無原始照片</span></div><figcaption class="photo-copy"><strong>施工中</strong><p>水電階段</p><p>長文字測試：廚房與衛浴給排水管線配置及牆面修補紀錄。</p><button class="btn" data-photo-preview="施工中">檢視空圖片槽</button></figcaption></figure>
+        </div></div><p class="domain-foot" id="photo-foot">圖片上限 10 MB／張。</p>
+      </section>
+      <section class="section" id="schedule" aria-labelledby="schedule-title" tabindex="-1">
+        <header class="section-head"><div><div class="heading-line"><svg class="icon" aria-hidden="true"><use href="#i-calendar"/></svg><h2 id="schedule-title">近期工作</h2></div><p>工班排程與到期提醒。</p></div><button class="btn edit-control" data-form="schedule" data-testid="schedule-add-cta">＋ 新增工作</button></header>
+        <div class="empty" data-testid="schedule-empty"><h3>尚未安排工班工作</h3><p>填入工班名稱、施工日期與提醒日，工作安排會依開始日期排列。</p></div><p class="domain-foot">到期及未來 7 天的提醒會顯示在此處。</p>
+      </section>
+      <section class="section" id="warranties" aria-labelledby="warranty-title" tabindex="-1">
+        <header class="section-head"><div><div class="heading-line"><svg class="icon" aria-hidden="true"><use href="#i-shield"/></svg><h2 id="warranty-title">保固紀錄</h2></div><p>保固期間與廠商聯絡資料。</p></div><button class="btn edit-control" data-form="warranty" data-testid="warranty-add-cta">＋ 新增保固</button></header>
+        <div class="empty" data-testid="warranty-empty"><h3>尚未建立保固紀錄</h3><p>交付時記下項目、提供廠商與起訖日期，日後即可查找保固範圍。</p></div><p class="domain-foot">將標示 30 天內到期與已過期的保固。</p>
+      </section>
+    </div>
+    <section class="section" id="gantt-section" aria-labelledby="gantt-heading" tabindex="-1">
+      <header class="section-head"><div><div class="heading-line"><h2 id="gantt-heading">工期圖</h2><span class="count">每日計畫</span></div><p data-testid="gantt-period">2026 年 1 月 5 日 — 2 月 6 日</p></div><a class="btn" href="#timeline">返回階段清單 ↑</a></header>
+      <div class="gantt-intro"><strong>7 個階段 · 全部尚未開始</strong><p>↔ 左右滑動日期，階段名稱保持可見。</p></div>
+      <div class="gantt-scroll" id="gantt-scroll" tabindex="0" role="region" aria-label="每日工期圖，可左右捲動" aria-describedby="gantt-help"><div class="gantt-grid" id="gantt"></div></div>
+      <div class="gantt-footer"><p id="gantt-help">每天一格，期間包含開始與結束當日。鍵盤可使用左右方向鍵。</p><div class="gantt-controls"><button class="btn" id="gantt-prev" aria-label="工期圖向前一週">← 前一週</button><button class="btn" id="gantt-next" aria-label="工期圖向後一週">後一週 →</button></div></div>
+    </section>
+    <details class="review" id="review"><summary>原型狀態檢視 · MOB-10／12</summary><div class="review-content">
+      <p>基準為既有 seed：「我的裝修工程」、七個未開始階段、0% 完成。預算、照片、排程與保固皆為空。下列控制僅供版面驗收，不會儲存變更。</p>
+      <div class="review-buttons"><button class="btn" id="long-text" aria-pressed="false">長文字：關閉</button><button class="btn" id="photo-layout-toggle" aria-pressed="false">照片版面：關閉</button><button class="btn edit-control" id="error-demo">檢視驗證錯誤</button><button class="btn" id="readonly-demo">檢視唯讀分享</button><button class="btn" id="loading-demo">檢視載入狀態</button><button class="btn" id="reset-review">重設原型檢視</button></div>
+      <p class="muted" id="review-state" role="status">目前顯示原始 seed；未讀寫本機工程資料。</p>
+      <h3>狀態標記樣本</h3><p class="muted">以下只展示狀態語言，不代表工程已有這些紀錄。</p>
+      <dl class="state-samples"><div><dt>階段</dt><dd><span class="status">○ 尚未開始</span><span class="status current">◐ 進行中</span><span class="status complete">✓ 已完成</span><span class="status blocked">! 阻塞</span></dd></div><div><dt>排程</dt><dd><span class="status">○ 未開始</span><span class="status current">◷ 今日</span><span class="status current">◐ 進行中</span><span class="status warning">! 逾期</span><span class="status complete">✓ 已完成</span></dd></div><div><dt>保固</dt><dd><span class="status">○ 尚未開始</span><span class="status complete">✓ 有效中</span><span class="status warning">! 30 天內到期</span><span class="status blocked">! 已過期</span></dd></div></dl>
+      <div class="notice error"><strong>錯誤樣式示意</strong><p>無法讀取分享內容。請向分享者取得新的連結，再重新開啟。</p></div>
+      <p class="muted">UI-MOB-007：本原型仍待 Sean 確認。此頁沒有實作 IndexedDB、真正分享連結或資料儲存。</p>
+    </div></details>
+    <footer class="footer"><p>Renovation Tracker · v4 手機版視覺原型</p><p>表單僅供檢查輸入；所有工程資料維持 seed 基準。</p></footer>
+  </main>
+  <noscript><p class="notice error">此原型需要 JavaScript 顯示階段、工期圖與表單互動。請啟用 JavaScript 後重新開啟。</p></noscript>
+  <dialog id="editor" aria-labelledby="editor-title" aria-describedby="editor-note">
+    <header class="dialog-head"><h2 id="editor-title">新增階段</h2><button class="btn icon-only" data-close aria-label="關閉表單"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></header>
+    <div class="dialog-body"><p class="notice" id="editor-note">表單預覽：可檢查欄位，資料不會儲存。</p><form id="preview-form" novalidate><div class="form-grid" id="fields"></div></form><p class="form-hint" id="form-hint"></p><div class="notice error" id="form-feedback" role="alert" hidden></div></div>
+    <footer class="dialog-foot actions"><button class="btn" data-close>取消</button><button class="btn primary" type="submit" form="preview-form">檢查輸入</button></footer>
+  </dialog>
+  <dialog id="share-dialog" aria-labelledby="share-title" aria-describedby="share-note">
+    <header class="dialog-head"><h2 id="share-title">唯讀分享</h2><button class="btn icon-only" data-close aria-label="關閉分享"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></header>
+    <div class="dialog-body"><p class="notice" id="share-note">此原型未產生連結，可先檢視唯讀畫面。</p><dl class="share-facts" data-testid="share-dialog"><div><dt>工程</dt><dd id="share-project-name">我的裝修工程</dd></div><div><dt>施工期間</dt><dd>2026-01-05 至 2026-02-06</dd></div><div><dt>階段進度</dt><dd>7 個階段 · 0% 完成</dd></div><div><dt>其他紀錄</dt><dd>預算、照片、工作與保固皆為空。</dd></div></dl><p>分享內容為產生當下的唯讀快照，不會即時同步，也不含照片原始檔。</p><button class="btn" disabled aria-describedby="share-note">複製分享連結</button></div>
+    <footer class="dialog-foot actions"><button class="btn" data-close>取消</button><button class="btn primary" id="preview-readonly">預覽唯讀畫面</button></footer>
+  </dialog>
+  <dialog id="confirm-dialog" aria-labelledby="confirm-title">
+    <header class="dialog-head"><h2 id="confirm-title">刪除階段</h2><button class="btn icon-only" data-close aria-label="關閉刪除確認"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></header>
+    <div class="dialog-body"><p id="confirm-copy"></p><p class="notice">這是確認畫面的預覽，確認後也不會刪除 seed 資料。</p></div><footer class="dialog-foot actions"><button class="btn" data-close autofocus>取消</button><button class="btn danger" id="confirm-preview">確認刪除（預覽）</button></footer>
+  </dialog>
+  <dialog id="photo-dialog" aria-labelledby="photo-dialog-title">
+    <header class="dialog-head"><h2 id="photo-dialog-title">照片預覽</h2><button class="btn icon-only" data-close aria-label="關閉照片預覽"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></header><div class="dialog-body"><div class="empty"><h3>尚無原始照片</h3><p>目前為縮圖版面示意，未載入工程照片。唯讀分享只包含照片資訊，不包含原始圖片。</p></div></div><footer class="dialog-foot"><button class="btn" data-close>關閉預覽</button></footer>
+  </dialog>
+  <div id="toast" class="notice success" role="status" aria-live="polite" hidden></div>
+  <script>
+    'use strict';
+    // Source: web/src/seed.ts. Immutable review data, no remote or storage APIs.
+    const stages = Object.freeze([
+      { name:'拆除', start:'2026-01-05', end:'2026-01-09', offset:0, days:5 },
+      { name:'水電', start:'2026-01-10', end:'2026-01-14', offset:5, days:5 },
+      { name:'泥作', start:'2026-01-15', end:'2026-01-19', offset:10, days:5 },
+      { name:'木作', start:'2026-01-20', end:'2026-01-24', offset:15, days:5 },
+      { name:'油漆', start:'2026-01-25', end:'2026-01-29', offset:20, days:5 },
+      { name:'安裝', start:'2026-01-30', end:'2026-02-03', offset:25, days:5 },
+      { name:'驗收', start:'2026-02-04', end:'2026-02-06', offset:30, days:3 }
+    ].map(Object.freeze));
+    const $ = id => document.getElementById(id);
+    const escapeHTML = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const shortDate = value => value.slice(5).replace('-','/');
+    const review = { long:false, photos:false, readonly:false };
+    const longName = '我的裝修工程｜廚房、衛浴與全室水電更新及交付驗收紀錄（長文字版面測試）';
+    const stageName = index => review.long && index === 1 ? '水電｜廚房與衛浴給排水管線、插座迴路及配電箱配置確認（長文字測試）' : stages[index].name;
+    function renderStages() {
+      $('stage-list').innerHTML = stages.map((s,i) => `<li class="stage-row" data-testid="stage-row-seed-${(i+1).toString(36).padStart(4,'0')}"><div class="stage-heading"><div class="stage-name"><span class="stage-number">${String(i+1).padStart(2,'0')}</span><h3>${escapeHTML(stageName(i))}</h3></div><span class="status"><span class="status-symbol" aria-hidden="true">○</span>尚未開始</span></div><dl class="stage-period"><div><dt>預計開始</dt><dd><time datetime="${s.start}">${s.start}</time></dd></div><div><dt>預計結束</dt><dd><time datetime="${s.end}">${s.end}</time></dd></div></dl>${review.long && i===1 ? '<p class="stage-note">備註版面測試：施工前需逐一核對廚房與兩間衛浴的給排水位置，並確認既有插座迴路與配電箱標示。此段文字不會寫入工程。</p>' : ''}<div class="actions edit-control"><button class="btn" data-stage="${i}" aria-label="編輯${escapeHTML(stageName(i))}">編輯階段</button><button class="btn danger" data-delete="${i}" aria-label="刪除${escapeHTML(stageName(i))}">刪除</button></div></li>`).join('');
+    }
+    function renderGantt() {
+      let html = '<div class="gantt-corner">工程階段</div><div class="gantt-month" style="grid-column:2 / span 27;grid-row:1">2026 年 1 月</div><div class="gantt-month" style="grid-column:29 / span 6;grid-row:1">2026 年 2 月</div>';
+      for (let i=0;i<33;i++) html += `<div class="gantt-day${i%7>4?' weekend':''}" style="grid-column:${i+2};grid-row:2">${i<27?i+5:i-26}</div>`;
+      stages.forEach((s,i) => {
+        const row=i+3;
+        html += `<div class="gantt-label" style="grid-row:${row}" data-testid="gantt-label-seed-${(i+1).toString(36).padStart(4,'0')}"><strong>${escapeHTML(stageName(i))}</strong><span>○ 未開始</span></div>`;
+        for (let d=0;d<33;d++) html += `<div class="gantt-cell${d%7>4?' weekend':''}" style="grid-column:${d+2};grid-row:${row}" aria-hidden="true"></div>`;
+        html += `<div class="gantt-bar" style="grid-column:${s.offset+2} / span ${s.days};grid-row:${row}" aria-label="${escapeHTML(stageName(i))}，${s.start} 至 ${s.end}，尚未開始"><span>${shortDate(s.start)}</span><span>至 ${shortDate(s.end)}</span></div>`;
+      });
+      $('gantt').innerHTML=html;
+    }
+    renderStages(); renderGantt();
+
+    const navLinks=[...document.querySelectorAll('.nav-link')];
+    const navSections=navLinks.map(link => document.querySelector(link.hash));
+    const nav=document.querySelector('.section-nav');
+    new ResizeObserver(() => document.documentElement.style.setProperty('--nav-height',`${nav.offsetHeight}px`)).observe(nav);
+    let scrollQueued=false;
+    function updateNav() {
+      let current=navSections[0];
+      const cutoff=nav.offsetHeight+40;
+      navSections.forEach(section => { if(section.getBoundingClientRect().top<=cutoff) current=section; });
+      if($('gantt-section').getBoundingClientRect().top<=cutoff) current=$('timeline');
+      navLinks.forEach(link => link.hash==='#'+current.id ? link.setAttribute('aria-current','location') : link.removeAttribute('aria-current'));
+      scrollQueued=false;
+    }
+    window.addEventListener('scroll',() => { if(!scrollQueued) { scrollQueued=true; requestAnimationFrame(updateNav); } },{passive:true});
+    document.querySelectorAll('a[href^="#"]').forEach(link => link.addEventListener('click',() => {
+      const target=document.querySelector(link.hash);
+      if(target=== $('review')) target.open=true;
+      if(target && target!==$('review')) { target.tabIndex=-1; target.focus({preventScroll:true}); }
+    }));
+    const scrollGantt=direction => $('gantt-scroll').scrollBy({left:direction*224,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});
+    $('gantt-prev').addEventListener('click',() => scrollGantt(-1));
+    $('gantt-next').addEventListener('click',() => scrollGantt(1));
+    function updateGanttControls() {
+      const area=$('gantt-scroll');
+      $('gantt-prev').disabled=area.scrollLeft<=0;
+      $('gantt-next').disabled=area.scrollLeft>=area.scrollWidth-area.clientWidth-1;
+    }
+    $('gantt-scroll').addEventListener('scroll',updateGanttControls,{passive:true});
+    new ResizeObserver(updateGanttControls).observe($('gantt-scroll'));
+
+    let opener=null, toastTimer, loadingTimer;
+    function openDialog(dialog,trigger) {
+      opener=trigger;
+      dialog.showModal();
+      dialog.querySelector('.dialog-body').scrollTop=0;
+      (dialog.querySelector('[autofocus]') || dialog.querySelector('[data-close]')).focus({preventScroll:true});
+    }
+    document.querySelectorAll('[data-close]').forEach(button => button.addEventListener('click',() => button.closest('dialog').close()));
+    document.querySelectorAll('dialog').forEach(dialog => dialog.addEventListener('close',() => {
+      if(review.readonly && opener?.closest('.edit-control')) $('leave-readonly').focus({preventScroll:true});
+      else if(opener?.isConnected) opener.focus({preventScroll:true});
+    }));
+    function toast(message) {
+      clearTimeout(toastTimer); $('toast').textContent=message; $('toast').hidden=false;
+      toastTimer=setTimeout(() => $('toast').hidden=true,5000);
+    }
+    const input=(label,name,type='text',value='',required=false,extra='') => `<label class="field">${label}${required?'（必填）':''}<input name="${name}" type="${type}" value="${escapeHTML(value)}" ${required?'required':''} ${extra}></label>`;
+    const select=(label,name,options,full=false) => `<label class="field${full?' full':''}">${label}<select name="${name}">${options.map(([value,text]) => `<option value="${value}">${escapeHTML(text)}</option>`).join('')}</select></label>`;
+    const stageOptions=[['','不指定階段'],...stages.map((s,i) => [String(i),s.name])];
+    const note='<label class="field full">備註<textarea name="note" rows="3"></textarea></label>';
+    let formKind='stage';
+    function showForm(kind,trigger,index) {
+      if(review.readonly) return;
+      formKind=kind;
+      const s=Number.isInteger(index)?stages[index]:null;
+      let fields='',title='',hint='標示「必填」的欄位不可留白。';
+      if(kind==='stage') {
+        title=s?'編輯階段':'新增階段';
+        fields=input('階段名稱','name','text',s?stageName(index):'',true)+select('狀態','status',[['not_started','尚未開始'],['in_progress','進行中'],['completed','已完成'],['blocked','阻塞']])+input('預計開始','start','date',s?.start||'',true,'min="2026-01-05" max="2026-02-06"')+input('預計結束','end','date',s?.end||'',true,'min="2026-01-05" max="2026-02-06"')+note;
+        hint='日期須在工程期間 2026-01-05 至 2026-02-06 內，結束日期不可早於開始日期。';
+      } else if(kind==='project') {
+        title='更新工程狀態';
+        fields=select('工程狀態','status',[['planning','規劃中'],['in_progress','進行中'],['completed','已完成']],true);
+      } else if(kind==='budget') {
+        title='新增預算項目';
+        fields=input('項目名稱','name','text','',true)+input('分類','category','text','',true)+input('預算金額','planned','number','',true,'min="0" step="0.01" inputmode="decimal"')+input('實際金額','actual','number','',true,'min="0" step="0.01" inputmode="decimal"')+select('付款狀態','payment',[['unpaid','未付款'],['partial','部分付款'],['paid','已付款']],true)+note;
+        hint='金額不可為負數，最多兩位小數；單位為新臺幣。';
+      } else if(kind==='photo') {
+        title='新增照片';
+        fields=input('照片','photo','file','',true,'accept="image/*"')+select('分類','kind',[['before','施工前'],['progress','施工中'],['after','完工後']])+input('拍攝日期','date','date','',true)+select('關聯階段','stage',stageOptions)+ '<label class="field full">說明<textarea name="caption" rows="3"></textarea></label>';
+        hint='請選擇 10 MB 以下的圖片。此原型只驗證檔案，不上傳、不讀取或儲存圖片內容。';
+      } else if(kind==='schedule') {
+        title='新增工作';
+        fields=input('工班名稱','worker','text','',true)+input('聯絡電話','phone','tel')+select('關聯階段','stage',stageOptions,true)+input('開始日期','start','date','',true)+input('結束日期','end','date','',true)+input('提醒日期','reminder','date')+note;
+        hint='結束日期不可早於開始日期；提醒日期不可晚於開始日期。';
+      } else if(kind==='warranty') {
+        title='新增保固';
+        fields=input('保固項目','name','text','',true)+input('提供廠商','provider','text','',true)+input('聯絡方式','contact')+input('保固開始','start','date','',true)+input('保固結束','end','date','',true)+note;
+        hint='保固結束日期不可早於保固開始日期。';
+      }
+      $('editor-title').textContent=title; $('fields').innerHTML=fields; $('form-hint').textContent=hint;
+      $('form-feedback').hidden=true;
+      openDialog($('editor'),trigger);
+    }
+    document.addEventListener('click',event => {
+      const button=event.target.closest('button'); if(!button) return;
+      if(button.hasAttribute('data-stage')) showForm('stage',button,Number(button.dataset.stage));
+      if(button.dataset.form) showForm(button.dataset.form,button);
+      if(button.hasAttribute('data-delete') && !review.readonly) {
+        $('confirm-copy').textContent=`確定要刪除「${stageName(Number(button.dataset.delete))}」階段嗎？`;
+        openDialog($('confirm-dialog'),button);
+      }
+      if(button.dataset.photoPreview) {
+        $('photo-dialog-title').textContent=`${button.dataset.photoPreview} · 空圖片槽`;
+        openDialog($('photo-dialog'),button);
+      }
+    });
+    $('confirm-preview').addEventListener('click',() => {
+      if(review.readonly) return;
+      $('confirm-dialog').close(); toast('已檢視刪除確認；原型沒有刪除任何階段。');
+    });
+    function validateForm() {
+      if(review.readonly) return false;
+      const form=$('preview-form');
+      const fields=[...form.querySelectorAll('input,select,textarea')];
+      fields.forEach(field => { field.removeAttribute('aria-invalid'); field.removeAttribute('aria-describedby'); });
+      form.querySelectorAll('.field-error').forEach(el => el.remove());
+      const errors=[];
+      const addError=(field,message) => { if(!errors.some(e=>e.field===field)) errors.push({field,message}); };
+      fields.forEach(field => {
+        const label=field.parentElement.firstChild.textContent.replace('（必填）','');
+        if(field.required && (field.type==='file'?!field.files.length:!field.value.trim())) addError(field,`請填寫${label}。`);
+        else if(!field.checkValidity()) addError(field,field.type==='date'?'日期須在工程期間 2026-01-05 至 2026-02-06 內。':field.type==='number'?'請輸入大於等於 0、最多兩位小數的有效金額。':`請確認${label}的格式。`);
+      });
+      const data=new FormData(form);
+      if(data.get('start') && data.get('end') && data.get('start')>data.get('end')) addError(form.elements.namedItem('end'),'結束日期不可早於開始日期。');
+      if(data.get('reminder') && data.get('start') && data.get('reminder')>data.get('start')) addError(form.elements.namedItem('reminder'),'提醒日期不可晚於開始日期。');
+      if(formKind==='photo') {
+        const field=form.elements.namedItem('photo'),file=field.files[0];
+        if(file && (!file.type.startsWith('image/') || file.size>10*1024*1024)) addError(field,'請選擇 10 MB 以下的圖片檔案。');
+      }
+      errors.forEach(({field,message},i) => {
+        const error=document.createElement('span'); error.id=`field-error-${i}`; error.className='field-error'; error.textContent=message;
+        field.parentElement.append(error); field.setAttribute('aria-invalid','true'); field.setAttribute('aria-describedby',error.id);
+      });
+      const feedback=$('form-feedback'); feedback.hidden=false; feedback.className=`notice ${errors.length?'error':'success'}`;
+      feedback.textContent=errors.length?`有 ${errors.length} 個欄位需要修正。${errors[0].message}`:'輸入檢查通過。此為介面原型，沒有儲存或更新工程資料。';
+      feedback.setAttribute('role',errors.length?'alert':'status');
+      if(errors.length) errors[0].field.focus();
+      else feedback.scrollIntoView({block:'nearest'});
+      return errors.length===0;
+    }
+    $('preview-form').addEventListener('submit',event => { event.preventDefault(); validateForm(); });
+    function showShare(trigger) {
+      $('share-project-name').textContent=$('project-title').textContent;
+      openDialog($('share-dialog'),trigger);
+    }
+    $('share').addEventListener('click',event => showShare(event.currentTarget));
+    $('readonly-demo').addEventListener('click',event => showShare(event.currentTarget));
+    function setReadonly(value) {
+      review.readonly=value; document.body.classList.toggle('readonly',value); $('readonly-banner').hidden=!value;
+      $('photo-layout').hidden=value || !review.photos;
+      $('photo-empty').hidden=!value && review.photos;
+      $('photo-foot').textContent=value?'分享僅含照片資訊，不包含原始圖片。':'圖片上限 10 MB／張。';
+      $('review-state').textContent=value?'目前為唯讀預覽；新增、編輯、刪除與狀態切換入口已隱藏。':'目前為可編輯介面預覽；所有輸入仍不儲存。';
+    }
+    $('preview-readonly').addEventListener('click',() => {
+      setReadonly(true); $('share-dialog').close(); window.scrollTo({top:0,behavior:'instant'}); $('leave-readonly').focus({preventScroll:true});
+    });
+    $('leave-readonly').addEventListener('click',() => {
+      setReadonly(false); window.scrollTo({top:0,behavior:'instant'}); $('share').focus({preventScroll:true});
+    });
+    function setLong(value) {
+      review.long=value; $('project-title').textContent=value?longName:'我的裝修工程';
+      $('long-text').textContent=`長文字：${value?'開啟':'關閉'}`; $('long-text').setAttribute('aria-pressed',String(value));
+      renderStages(); renderGantt(); updateGanttControls();
+    }
+    $('long-text').addEventListener('click',() => { setLong(!review.long); $('review-state').textContent=review.long?'已啟用長工程名稱、階段名稱與備註測試；數值仍為 seed。':'已還原 seed 的工程與階段名稱。'; });
+    function setPhotoLayout(value) {
+      review.photos=value; $('photo-layout').hidden=!value || review.readonly; $('photo-empty').hidden=value && !review.readonly;
+      $('photo-layout-toggle').textContent=`照片版面：${value?'開啟':'關閉'}`; $('photo-layout-toggle').setAttribute('aria-pressed',String(value));
+    }
+    $('photo-layout-toggle').addEventListener('click',() => {
+      setPhotoLayout(!review.photos);
+      $('review-state').textContent=review.readonly?'唯讀分享維持空照片資訊，沒有原始圖片。':review.photos?'已啟用兩欄照片槽示意，可前往照片區檢視。':'照片區已還原 seed 空狀態。';
+    });
+    $('error-demo').addEventListener('click',event => {
+      showForm('stage',event.currentTarget);
+      const form=$('preview-form'); form.elements.start.value='2026-01-10'; form.elements.end.value='2026-01-09'; validateForm();
+    });
+    $('loading-demo').addEventListener('click',() => {
+      clearTimeout(loadingTimer); $('stage-loading').hidden=false; $('stage-list').hidden=true; $('timeline').scrollIntoView({block:'start'});
+      loadingTimer=setTimeout(() => { $('stage-loading').hidden=true; $('stage-list').hidden=false; toast('階段載入預覽完成，已還原七個 seed 階段。'); },1800);
+    });
+    $('reset-review').addEventListener('click',() => {
+      clearTimeout(loadingTimer); $('stage-loading').hidden=true; $('stage-list').hidden=false;
+      setReadonly(false); setLong(false); setPhotoLayout(false); $('gantt-scroll').scrollLeft=0;
+      $('review-state').textContent='已重設：原始 seed、空照片與可編輯介面預覽；未儲存任何變更。';
+    });
+  </script>
+</body>
+</html>

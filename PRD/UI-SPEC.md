@@ -1,7 +1,7 @@
 # Renovation Tracker UI Specification
 
-**Version:** 1.1  
-**Status:** Implementation-ready  
+**Version:** 1.2
+**Status:** Mobile design gate pending
 **Scope:** Visual and interaction polish for the existing FR-001–FR-006 MVP
 
 ## 1. Purpose
@@ -156,6 +156,33 @@ All existing controls must have designed default, hover, active, keyboard focus,
 - Long lists scroll within their surface only when necessary; the document itself must not overflow horizontally.
 - Dialogs fit the viewport with safe margins and scroll internally when long.
 
+### Mobile remediation contract (v1.2)
+
+The mobile layout is a deliberate composition, not a desktop grid reduced by CSS. The implementation and prototype must satisfy the following concrete contract at both **390×844** and **360×800** unless a criterion explicitly says otherwise:
+
+- **MOB-01 Page frame:** use 16px horizontal page padding, a maximum 24px section gap, and no page-level horizontal overflow. The body scrollbar must not be required to reveal clipped content.
+- **MOB-02 Header:** the product mark and project identity occupy the first row; status/date metadata occupies the next row; share and other header actions form a full-width or two-column action group below. No header action may be visually clipped or depend on hover.
+- **MOB-03 Navigation:** section navigation is either a single-line touch-scroll rail or a wrapped control group. Each item has at least a 44×44px hit area, the active item is visible without requiring a desktop-width viewport, and navigation never causes document overflow.
+- **MOB-04 Summary hierarchy:** preserve all existing summary values and calculations. Render them as a two-column grid with equal-width cells; the completion value spans the full row when needed to retain a readable label, value, and progress treatment. Do not reduce values to icon-only tiles.
+- **MOB-05 Stages:** each stage is a vertical block with name/status first, dates and supporting metadata second, and edit/delete actions last. Actions are a full-width or two-column group with a 44px minimum target; no action may be pushed outside the card.
+- **MOB-06 Domain sections:** budget, photos, schedule, and warranties use one-column composition. Section titles and the primary section action may wrap to two rows, but the action remains visible and reachable. Photo tiles use a two-column grid with a stable aspect ratio; text and controls must not overlap thumbnails.
+- **MOB-07 Gantt/timeline:** only the Gantt surface may scroll horizontally. Keep the task-label column visible or clearly repeated while the time grid scrolls. Never create a page-level horizontal scrollbar and never shrink timeline labels below readable text size.
+- **MOB-08 Forms and dialogs:** form fields become one column except for intentionally paired short fields. Dialog width is `min(100% - 32px, 520px)`, content scrolls inside the dialog when necessary, the title and close control remain reachable, and primary/cancel actions become a full-width stacked or equal two-column group.
+- **MOB-09 Touch and type:** all mobile interactive controls have a 44×44px minimum hit area, body text is at least 14px with 1.5 line-height, page headings are 22–24px, and critical status is communicated with text/icon plus color—not color alone.
+- **MOB-10 Resilience:** long Chinese labels, long project names, empty states, validation errors, and readonly/share mode must wrap cleanly. No `white-space: nowrap` rule may clip user content; intentional navigation/timeline scrolling must be limited to its own surface.
+- **MOB-11 Interaction parity:** the mobile composition preserves FR-001–FR-006 behavior, IndexedDB persistence, readonly share restrictions, anchor navigation, and existing test hooks. Responsive work must not introduce a second state model.
+- **MOB-12 Quality states:** the prototype and implementation show at least one populated state, one empty state, one error/validation state, and one dialog state at mobile width. Focus-visible styling and reduced-motion behavior remain present.
+
+### Mobile visual prototype requirements
+
+Before MiniMax changes production React/CSS, the Planner must produce and Sean must review a standalone visual prototype at `prototype/ui-polish-preview-v4.html`.
+
+- The prototype must use the actual Renovation Tracker information architecture and Traditional Chinese product semantics, with representative seed data matching the current app rather than invented marketing content.
+- It must visibly cover Overview, Timeline, Budget, Photos, Warranties, and the Gantt/timeline surface, including the mobile states in MOB-01–MOB-12.
+- It must be self-contained HTML/CSS/JavaScript with no CDN, remote fetch, external font, or external image dependency. Small local interactions may be included to demonstrate navigation, a dialog, and the inner Gantt scroll.
+- It must include a desktop fallback so the mobile composition can be compared with the existing desktop visual direction; this does not authorize production implementation before approval.
+- The prototype review is a hard human gate. MiniMax must not begin the mobile production implementation until Sean explicitly approves the prototype or requests a bounded revision.
+
 ## 7. Accessibility and quality bar
 
 - Maintain semantic heading order and form labels.
@@ -181,7 +208,14 @@ All existing controls must have designed default, hover, active, keyboard focus,
 - **UI-012 Reference fidelity with product integrity:** the reference prompt's original visual quality, responsive, accessibility, and self-contained-preview principles are represented, while unrelated Rotech branding, marketing pages, fake content, and unsupported features are absent.
 - **UI-013 Content and asset integrity:** all prominent metrics and imagery are traceable to existing project data or clearly marked empty states; no stock/generated decorative image is required for the interface to feel complete.
 - **UI-014 Prototype parity:** the reviewed standalone preview and the production implementation share the same hierarchy, tokens, responsive behavior, and interaction priorities; the preview is not a disconnected artboard.
+- **UI-MOB-001 Mobile frame:** at 390×844 and 360×800, there is no page-level horizontal overflow, clipped content, or unreachable action.
+- **UI-MOB-002 Mobile shell:** header, navigation, summary, and section actions follow MOB-02–MOB-04 with visible active navigation and 44px touch targets.
+- **UI-MOB-003 Mobile domain composition:** stages, budget, photos, schedule, warranties, and empty states follow MOB-05–MOB-06 without overlapping content.
+- **UI-MOB-004 Mobile timeline:** Gantt/timeline horizontal scrolling is contained within its surface and labels remain understandable per MOB-07.
+- **UI-MOB-005 Mobile dialogs:** create/edit dialogs meet MOB-08, including internal scrolling, safe margins, labels, validation feedback, and reachable actions.
+- **UI-MOB-006 Mobile resilience:** long labels, readonly/share mode, focus-visible state, reduced motion, and error/empty states meet MOB-09–MOB-12.
+- **UI-MOB-007 Prototype gate:** `prototype/ui-polish-preview-v4.html` is reviewed and explicitly approved by Sean before MiniMax implementation begins.
 
 ## 9. Verification and definition of done
 
-From `web/`, run `npm run typecheck`, `npm test -- --run`, `npm run build`, and `git diff --check`. Exercise at least one existing create/edit/delete flow and refresh to confirm persistence. The milestone is done only when MiniMax reports changed files and actual command output, Codex independently passes deterministic and browser checks, and all UI-001–UI-014 criteria pass. Release then follows the project `AGENTS.md` sequence: commit, push, SHA-pinned Vercel deploy, canonical Notion update, and three-way SHA verification.
+From `web/`, run `npm run typecheck`, `npm test -- --run`, `npm run build`, and `git diff --check`. Exercise at least one existing create/edit/delete flow and refresh to confirm persistence. The milestone is done only when MiniMax reports changed files and actual command output, Codex independently passes deterministic and browser checks at 1440×900, 1024×768, 390×844, and 360×800, and all UI-001–UI-014 plus UI-MOB-001–UI-MOB-007 criteria pass. Release then follows the project `AGENTS.md` sequence: commit, push, SHA-pinned Vercel deploy, canonical Notion update, and three-way SHA verification.

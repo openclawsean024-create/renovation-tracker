@@ -1835,27 +1835,50 @@ body.readonly .gantt-hit { pointer-events: none; }
 }
 
 @media (max-width: 767px) {
+  /* MOB-01 — page frame: 16px horizontal padding, no page-level overflow. */
   html { scroll-padding-top: 184px; }
+  body { overflow-x: hidden; }
   .wrap { padding-inline: var(--s4); }
-  .brand-row { min-height: 68px; gap: var(--s2); }
-  .brand { gap: var(--s2); }
-  .brand-mark { width: 32px; height: 32px; }
+
+  /* MOB-02 — header stacks: brand identity, metadata row, then full-width action group. */
+  .brand-row {
+    min-height: 0;
+    gap: var(--s2);
+    flex-wrap: wrap;
+    align-items: flex-start;
+    padding-block: var(--s3);
+  }
+  .brand { gap: var(--s2); min-height: 44px; }
+  .brand-mark { width: 36px; height: 36px; }
   .wordmark { font-size: 14px; }
   .wordmark small { font-size: 10px; }
+  .header-note {
+    font-size: 12px;
+    width: 100%;
+    flex-wrap: wrap;
+    gap: var(--s2) var(--s3);
+    /* Avoid clipping long Chinese labels per MOB-10. */
+    white-space: normal;
+  }
   .header-note .icon,
   .header-note .preview-version { display: none; }
-  .header-note { font-size: 11px; white-space: nowrap; }
+  .status-switcher { margin-left: 0; }
+
+  /* MOB-03 — navigation: wrapped touch-safe group with 44×44px targets. */
   .nav-row {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 0 var(--s3);
-    padding-bottom: var(--s2);
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--s1);
+    padding-bottom: var(--s3);
+    border-top: 1px solid var(--border);
   }
   .nav-link {
     justify-content: center;
     min-height: 44px;
-    padding: var(--s2);
+    min-width: 44px;
+    padding: var(--s2) var(--s3);
     font-size: 13px;
+    border-radius: var(--r-sm);
   }
   .nav-link .icon { width: 15px; height: 15px; }
   .nav-link[aria-current="location"] {
@@ -1866,15 +1889,32 @@ body.readonly .gantt-hit { pointer-events: none; }
   .app-main { padding-top: var(--s6); }
   h1 { font-size: 24px; }
   h2 { font-size: 18px; }
+
+  /* Hero stacks single-column with full-width share action. */
   .hero { grid-template-columns: minmax(0, 1fr); gap: var(--s6); }
   .project-intro { padding: 0; gap: var(--s5); }
-  .project-title-row { gap: var(--s3); }
-  .intro-bottom { gap: var(--s5); }
+  .project-title-row { gap: var(--s3); flex-wrap: wrap; }
+  .intro-bottom {
+    gap: var(--s5);
+    flex-direction: column;
+    align-items: stretch;
+  }
   .intro-bottom > .btn { width: 100%; }
-  .project-dates p { font-size: 14px; }
+  .share-actions { flex-direction: column; align-items: stretch; gap: var(--s2); }
+  .share-actions > .btn { width: 100%; }
+  .share-toast { width: 100%; }
+  .project-dates { padding-left: var(--s3); }
+  .project-dates p {
+    font-size: 14px;
+    /* MOB-10 — long Chinese dates must wrap, not overflow. */
+    white-space: normal;
+  }
   .next-step { padding: var(--s5); gap: var(--s4); }
   .next-step h2 { font-size: 18px; }
-  .next-footer { padding-top: var(--s3); }
+  .next-footer { padding-top: var(--s3); flex-wrap: wrap; gap: var(--s3); }
+  .next-footer .btn { flex: 1; min-height: 44px; }
+
+  /* MOB-04 — summary: two-column grid; completion reads full-row; dates span. */
   .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .metric {
     padding: var(--s4);
@@ -1885,26 +1925,67 @@ body.readonly .gantt-hit { pointer-events: none; }
   .metric:nth-child(2n) { border-right: 0; }
   .metric:nth-last-child(-n+2) { border-bottom: 0; }
   .metric dd { font-size: 26px; }
+  .metric.completion {
+    grid-column: 1 / -1;
+    border-radius: var(--r-md) var(--r-md) 0 0;
+    border-bottom: 1px solid var(--border);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--s2) var(--s4);
+  }
+  .metric.completion dt { margin-bottom: 0; }
+  .metric.completion dd { margin: 0; }
+  .metric.completion .progress { grid-column: 1 / -1; margin-top: var(--s2); }
+  .metric.dates {
+    grid-column: 1 / -1;
+    border-right: 0;
+    border-bottom: 0;
+  }
   .metric.dates dd {
     flex-direction: column;
-    gap: 0;
-    font-size: 12px;
+    gap: var(--s1);
+    font-size: 13px;
   }
-  .metric.dates dd span { flex-direction: row; gap: var(--s1); }
-  .metric.dates dd small { font-size: 10px; }
-  .section-header { padding: var(--s4); flex-wrap: wrap; gap: var(--s4); }
-  .stage-section .section-tools { width: 100%; justify-content: space-between; }
+  .metric.dates dd span { flex-direction: row; gap: var(--s1); justify-content: space-between; }
+  .metric.dates dd small { font-size: 11px; }
+
+  /* Section pattern — 16px padding, 24px gap, tools wrap below title. */
+  .section { margin-top: var(--s6); }
+  .section-header {
+    padding: var(--s4);
+    flex-wrap: wrap;
+    gap: var(--s4);
+    align-items: flex-start;
+  }
+  .section-heading { gap: var(--s2); }
+  .stage-section .section-tools {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: var(--s2);
+    justify-content: flex-start;
+  }
+  .stage-section .section-tools > .btn { flex: 1; min-width: 0; }
+  .view-switch { flex: 1; min-width: 0; }
   .view-switch button {
     min-height: 44px;
     padding-inline: var(--s3);
+    flex: 1;
   }
   .view-switch button .icon { display: none; }
   .section-tools > .btn { font-size: 13px; padding-inline: var(--s3); }
+
+  /* MOB-05 — vertical stage rows: name/status first, dates/metadata second,
+     actions last as a full-width two-column group with 44px targets. */
   .board-intro {
     padding: 0 var(--s4) var(--s3);
     flex-wrap: wrap;
     gap: var(--s2);
   }
+  .board-foot { padding: var(--s3) var(--s4) var(--s4); }
+
+  /* MOB-07 — Gantt horizontal scroll is contained inside .timeline-scroll;
+     label column stays sticky so the user always sees the row context. */
   .timeline-grid {
     --label-width: 144px;
     min-width: 936px;
@@ -1915,21 +1996,44 @@ body.readonly .gantt-hit { pointer-events: none; }
   .chart-label .status { font-size: 10px; }
   .chart-label .symbol { font-size: 12px; }
   .chart-label strong { font-size: 13px; }
-  .board-foot { padding: var(--s3) var(--s4) var(--s4); }
   .stage-list { padding-inline: var(--s4); }
   .stage-row {
-    grid-template-columns: 30px minmax(0, 1fr) auto 44px;
-    gap: var(--s1) var(--s3);
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "number"
+      "name"
+      "meta"
+      "actions";
+    gap: var(--s2);
     padding-block: var(--s4);
+    align-items: stretch;
   }
-  .stage-row .stage-number { grid-row: 1 / 3; }
-  .stage-row .stage-name { grid-column: 2; grid-row: 1; }
-  .stage-row .stage-meta { grid-row: 2; grid-column: 2 / 4; font-size: 11px; }
-  .stage-row .stage-actions { grid-column: 4; grid-row: 1 / 3; }
+  .stage-row .stage-number {
+    grid-area: number;
+    justify-self: start;
+    width: 30px; height: 30px;
+  }
+  .stage-row .stage-name { grid-area: name; font-size: 15px; }
+  .stage-row .stage-meta {
+    grid-area: meta;
+    font-size: 12px;
+    gap: var(--s2);
+  }
+  .stage-row .stage-actions {
+    grid-area: actions;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--s2);
+    margin-top: var(--s2);
+  }
+  .stage-row .stage-actions .btn { width: 100%; min-height: 44px; }
+
+  /* MOB-06 — single-column domain records; two-column photo tiles. */
   .records-heading {
     margin-top: var(--s8);
     gap: var(--s1);
     flex-direction: column;
+    align-items: flex-start;
   }
   .records-grid { grid-template-columns: minmax(0, 1fr); }
   .budget-body { padding: 0 var(--s4) var(--s5); }
@@ -1943,30 +2047,69 @@ body.readonly .gantt-hit { pointer-events: none; }
     padding: var(--s5) var(--s4);
     grid-template-columns: minmax(0, 1fr);
     gap: var(--s4);
+    align-items: stretch;
   }
-  .support-section .btn { justify-self: start; }
+  .support-section .btn { justify-self: stretch; width: 100%; min-height: 44px; }
   footer, .footer { flex-direction: column; align-items: flex-start; gap: var(--s1); font-size: 10px; }
+
+  /* MOB-08 — dialogs: safe margins, internal scroll, full-width actions. */
   .readonly-banner {
     flex-direction: column;
     align-items: flex-start;
     padding: var(--s4);
   }
+  .modal-backdrop { padding: var(--s3); }
+  .modal, dialog {
+    width: min(520px, calc(100% - 32px));
+    max-height: calc(100dvh - 32px);
+  }
+  .modal-wide { width: min(720px, calc(100% - 32px)); }
   .dialog-head { padding: var(--s4); }
-  .dialog-content { padding: var(--s4); }
+  .dialog-content { padding: var(--s4); overflow: auto; }
   .form-grid { grid-template-columns: minmax(0, 1fr); }
   .dialog-actions { flex-wrap: wrap; }
-  .dialog-actions .btn { flex: 1; }
+  .dialog-actions .btn { flex: 1; min-height: 44px; }
+  .form-actions { flex-wrap: wrap; }
+  .form-actions .btn { flex: 1; min-height: 44px; }
   .share-facts > div { flex-wrap: wrap; gap: var(--s1) var(--s4); }
-  .schedule-row { grid-template-columns: 1fr; }
-  .schedule-actions { justify-content: flex-start; }
-  .warranty-row { grid-template-columns: 1fr; }
-  .warranty-actions { justify-content: flex-start; }
-  .budget-row { grid-template-columns: 1fr; }
+
+  /* MOB-06 + MOB-09 — schedule / warranty / budget rows: single-column with
+     touch-safe action rows. */
+  .schedule-row { grid-template-columns: 1fr; gap: var(--s3); padding-block: var(--s4); }
+  .schedule-actions { justify-content: stretch; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s2); }
+  .schedule-actions .btn { min-height: 44px; width: 100%; }
+  .warranty-row { grid-template-columns: 1fr; gap: var(--s3); padding-block: var(--s4); }
+  .warranty-actions { justify-content: stretch; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s2); }
+  .warranty-actions .btn { min-height: 44px; width: 100%; }
+  .budget-row { grid-template-columns: 1fr; gap: var(--s3); padding-block: var(--s4); }
+  .budget-row-amounts { align-items: flex-start; }
+  .budget-actions { justify-content: stretch; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s2); }
+  .budget-actions .btn { min-height: 44px; width: 100%; }
   .budget-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .budget-summary-cell { border-bottom: 1px solid var(--border); }
   .budget-summary-cell:nth-child(2n) { border-right: 0; }
   .budget-summary-cell:nth-last-child(-n+2) { border-bottom: 0; }
-  .photo-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  /* MOB-06 — photo tiles: stable two-column grid. */
+  .photo-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s3); }
+  .photo-card .photo-meta { padding: var(--s3); }
+  .photo-card .photo-actions { display: grid; grid-template-columns: 1fr; gap: var(--s2); }
+  .photo-card .photo-actions .btn { min-height: 44px; }
+
+  /* MOB-10 — readonly long Chinese labels must wrap cleanly. */
+  .readonly-banner-source { word-break: break-all; }
+  .readonly-photo-name,
+  .readonly-warranty-name { word-break: break-word; }
+
+  /* MOB-09 — ensure interactive controls meet 44px touch target on mobile. */
+  .btn { min-height: 44px; }
+}
+
+/* MOB-12 — accessibility and motion preferences. prefers-reduced-motion
+   is already declared below; this rule ensures dialog scroll inside small
+   viewports respects safe-area insets. */
+@supports (padding: max(0px)) {
+  .modal-backdrop { padding: max(12px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
 }
 
 @media (prefers-reduced-motion: reduce) {

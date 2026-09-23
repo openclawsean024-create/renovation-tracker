@@ -1,8 +1,8 @@
-# MiniMax Implementation Brief — UI Polish Pass
+# MiniMax Implementation Brief — UI Polish Pass + Mobile Remediation
 
 ## Mission
 
-Implement the complete polish pass described in `PRD/UI-SPEC.md` for the existing Renovation Tracker MVP. The product is functionally complete; make the interface feel like an internationally credible, award-quality renovation operations dashboard without changing behavior.
+Implement the complete polish pass described in `PRD/UI-SPEC.md` for the existing Renovation Tracker MVP, including the approved mobile remediation in UI-MOB-001–UI-MOB-007. The product is functionally complete; make the interface feel like an internationally credible, award-quality renovation operations dashboard without changing behavior. The approved visual reference is `prototype/ui-polish-preview-v4.html`.
 
 ## Required reading
 
@@ -20,10 +20,11 @@ Read `AGENTS.md`, `PRD/SPEC.md`, `PRD/UI-SPEC.md`, `web/src/components/Dashboard
 - Do not copy the attached reference's Rotech brand, marketing copy, landing-page navigation, or unsupported features. Translate its quality bar into this product's project-dashboard context.
 - Do not use stock/generated decorative imagery or invented metrics; use existing project data, real photo content, or explicit empty states.
 - Do not touch credentials or generated build output.
+- The human design gate for `prototype/ui-polish-preview-v4.html` is approved. Match its mobile-first composition and information hierarchy in production React/CSS, but do not copy prototype-only review controls or seed-only interactions into production.
 
 ## Required outcomes
 
-Implement every UI-001 through UI-014 criterion in `PRD/UI-SPEC.md`: a distinctive but restrained product identity; international-quality composition and typography; centralized tokens; professional responsive shell; clear project focal point and header/KPI/section/stage/domain/Gantt hierarchy; designed empty/loading/error/success/focus/hover/disabled/readonly states; 44px touch targets and keyboard focus; no page-level mobile overflow; preview/production hierarchy parity; preserved functional behavior and test hooks.
+Implement every UI-001 through UI-014 and UI-MOB-001 through UI-MOB-007 criterion in `PRD/UI-SPEC.md`: a distinctive but restrained product identity; international-quality composition and typography; centralized tokens; professional responsive shell; clear project focal point and header/KPI/section/stage/domain/Gantt hierarchy; deliberate 390×844 and 360×800 mobile composition; stacked header and section actions; two-column mobile KPI; single-column domain cards; contained Gantt scrolling; mobile-safe dialogs; designed empty/loading/error/success/focus/hover/disabled/readonly states; 44px touch targets and keyboard focus; no page-level mobile overflow; preview/production hierarchy parity; preserved functional behavior and test hooks.
 
 ## Verification and report
 
@@ -34,4 +35,4 @@ Run from `web/` and include actual output plus exit codes:
     npm run build
     git diff --check
 
-Report exact files changed, markup changes and reasons, how each UI-SPEC acceptance group was addressed, and remaining limitations. Do not claim visual acceptance based only on source inspection; Codex will independently run browser QA at 1440×900, 1024×768, and 390×844 and will send a concrete correction brief if anything fails.
+Report exact files changed, markup changes and reasons, how each UI-SPEC acceptance group and UI-MOB acceptance group was addressed, and remaining limitations. Include actual command output and exit codes. Do not claim visual acceptance based only on source inspection; Codex will independently run browser QA at 1440×900, 1024×768, 390×844, and 360×800 and will send a concrete correction brief if anything fails.
