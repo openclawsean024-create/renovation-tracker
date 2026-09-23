@@ -1,7 +1,7 @@
 # Renovation Tracker UI Specification
 
-**Version:** 1.2
-**Status:** Mobile design gate pending
+**Version:** 1.3
+**Status:** Mobile viewport regression correction pending
 **Scope:** Visual and interaction polish for the existing FR-001–FR-006 MVP
 
 ## 1. Purpose
@@ -22,6 +22,7 @@ The result should feel calm, trustworthy, and useful on a job site: important pr
 - FR-005 schedule and reminder behavior.
 - FR-006 warranty behavior.
 - Existing `data-testid` hooks and accessible labels.
+- The production document must declare a device-width viewport (`width=device-width, initial-scale=1`) so mobile browsers do not scale the desktop canvas down to an unreadable thumbnail.
 - Local-first IndexedDB architecture; no backend, auth, cloud sync, or new external service.
 
 ### Explicitly out of scope
@@ -172,6 +173,7 @@ The mobile layout is a deliberate composition, not a desktop grid reduced by CSS
 - **MOB-10 Resilience:** long Chinese labels, long project names, empty states, validation errors, and readonly/share mode must wrap cleanly. No `white-space: nowrap` rule may clip user content; intentional navigation/timeline scrolling must be limited to its own surface.
 - **MOB-11 Interaction parity:** the mobile composition preserves FR-001–FR-006 behavior, IndexedDB persistence, readonly share restrictions, anchor navigation, and existing test hooks. Responsive work must not introduce a second state model.
 - **MOB-12 Quality states:** the prototype and implementation show at least one populated state, one empty state, one error/validation state, and one dialog state at mobile width. Focus-visible styling and reduced-motion behavior remain present.
+- **MOB-13 Viewport calibration:** `web/index.html` includes a standards-compliant device-width viewport declaration with `initial-scale=1`; at 390px and 360px CSS viewport widths the app renders its mobile breakpoint rather than a scaled desktop canvas. Do not use a global transform, browser-specific zoom hack, or user-scalable restriction to achieve this.
 
 ### Mobile visual prototype requirements
 
@@ -215,7 +217,8 @@ Before MiniMax changes production React/CSS, the Planner must produce and Sean m
 - **UI-MOB-005 Mobile dialogs:** create/edit dialogs meet MOB-08, including internal scrolling, safe margins, labels, validation feedback, and reachable actions.
 - **UI-MOB-006 Mobile resilience:** long labels, readonly/share mode, focus-visible state, reduced motion, and error/empty states meet MOB-09–MOB-12.
 - **UI-MOB-007 Prototype gate:** `prototype/ui-polish-preview-v4.html` is reviewed and explicitly approved by Sean before MiniMax implementation begins.
+- **UI-MOB-008 Viewport calibration:** on an actual mobile browser, the document width equals the device CSS width, text is readable without pinch-zoom, and the mobile breakpoint is active; the viewport meta declaration is present in `web/index.html`.
 
 ## 9. Verification and definition of done
 
-From `web/`, run `npm run typecheck`, `npm test -- --run`, `npm run build`, and `git diff --check`. Exercise at least one existing create/edit/delete flow and refresh to confirm persistence. The milestone is done only when MiniMax reports changed files and actual command output, Codex independently passes deterministic and browser checks at 1440×900, 1024×768, 390×844, and 360×800, and all UI-001–UI-014 plus UI-MOB-001–UI-MOB-007 criteria pass. Release then follows the project `AGENTS.md` sequence: commit, push, SHA-pinned Vercel deploy, canonical Notion update, and three-way SHA verification.
+From `web/`, run `npm run typecheck`, `npm test -- --run`, `npm run build`, and `git diff --check`. Exercise at least one existing create/edit/delete flow and refresh to confirm persistence. The milestone is done only when MiniMax reports changed files and actual command output, Codex independently passes deterministic and browser checks at 1440×900, 1024×768, 390×844, and 360×800, and all UI-001–UI-014 plus UI-MOB-001–UI-MOB-008 criteria pass. Release then follows the project `AGENTS.md` sequence: commit, push, SHA-pinned Vercel deploy, canonical Notion update, and three-way SHA verification.

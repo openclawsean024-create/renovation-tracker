@@ -2,7 +2,7 @@
 
 ## Mission
 
-Implement the complete polish pass described in `PRD/UI-SPEC.md` for the existing Renovation Tracker MVP, including the approved mobile remediation in UI-MOB-001–UI-MOB-007. The product is functionally complete; make the interface feel like an internationally credible, award-quality renovation operations dashboard without changing behavior. The approved visual reference is `prototype/ui-polish-preview-v4.html`.
+Implement the complete polish pass described in `PRD/UI-SPEC.md` for the existing Renovation Tracker MVP, including the approved mobile remediation and mobile viewport regression correction in UI-MOB-001–UI-MOB-008. The product is functionally complete; make the interface feel like an internationally credible, award-quality renovation operations dashboard without changing behavior. The approved visual reference is `prototype/ui-polish-preview-v4.html`.
 
 ## Required reading
 
@@ -21,10 +21,11 @@ Read `AGENTS.md`, `PRD/SPEC.md`, `PRD/UI-SPEC.md`, `web/src/components/Dashboard
 - Do not use stock/generated decorative imagery or invented metrics; use existing project data, real photo content, or explicit empty states.
 - Do not touch credentials or generated build output.
 - The human design gate for `prototype/ui-polish-preview-v4.html` is approved. Match its mobile-first composition and information hierarchy in production React/CSS, but do not copy prototype-only review controls or seed-only interactions into production.
+- Ensure `web/index.html` declares `width=device-width, initial-scale=1`; do not use transforms or user-scalable restrictions as a workaround for mobile viewport calibration.
 
 ## Required outcomes
 
-Implement every UI-001 through UI-014 and UI-MOB-001 through UI-MOB-007 criterion in `PRD/UI-SPEC.md`: a distinctive but restrained product identity; international-quality composition and typography; centralized tokens; professional responsive shell; clear project focal point and header/KPI/section/stage/domain/Gantt hierarchy; deliberate 390×844 and 360×800 mobile composition; stacked header and section actions; two-column mobile KPI; single-column domain cards; contained Gantt scrolling; mobile-safe dialogs; designed empty/loading/error/success/focus/hover/disabled/readonly states; 44px touch targets and keyboard focus; no page-level mobile overflow; preview/production hierarchy parity; preserved functional behavior and test hooks.
+Implement every UI-001 through UI-014 and UI-MOB-001 through UI-MOB-008 criterion in `PRD/UI-SPEC.md`: a distinctive but restrained product identity; international-quality composition and typography; centralized tokens; professional responsive shell; clear project focal point and header/KPI/section/stage/domain/Gantt hierarchy; deliberate 390×844 and 360×800 mobile composition; correctly calibrated device-width viewport; stacked header and section actions; two-column mobile KPI; single-column domain cards; contained Gantt scrolling; mobile-safe dialogs; designed empty/loading/error/success/focus/hover/disabled/readonly states; 44px touch targets and keyboard focus; no page-level mobile overflow; preview/production hierarchy parity; preserved functional behavior and test hooks.
 
 ## Verification and report
 
