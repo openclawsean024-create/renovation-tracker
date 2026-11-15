@@ -39,7 +39,7 @@ import type { Project } from '../types'
 const seedProject: Project = {
   id: 'proj-share',
   name: '我的裝修工程',
-  address: '台北市信義區',
+  address: '測試市示範路 1 號',
   status: 'in_progress',
   plannedStart: '2026-01-05',
   plannedEnd: '2026-02-06',
@@ -895,5 +895,499 @@ describe('FR-004 AppShell does NOT touch IndexedDB on share-mode first render', 
     expect(stagesSpy).not.toHaveBeenCalled()
     expect(photosSpy).not.toHaveBeenCalled()
     expect(budgetsSpy).not.toHaveBeenCalled()
+  })
+})
+
+// ───────────────────────── M1 / GOAL AC-005 ─────────────────────────
+// Share dialog: personal data is opt-in and the "unencrypted / cannot be
+// revoked" warning is shown. Read-only page: new M1 sections render and no
+// editing control exists.
+
+describe('AC-005 owner share link — privacy opt-in and M1 sections', () => {
+  const FAKE_ADDRESS = '測試市示範路 1 號'
+  const FAKE_PHONE = '0900-000-000'
+  const FAKE_CONTACT = 'demo@example.com'
+
+  const stageDone = {
+    id: 'idb-stage-key-AAA',
+    projectId: seedProject.id,
+    name: '拆除',
+    order: 1,
+    status: 'completed' as const,
+    plannedStart: '2026-01-05',
+    plannedEnd: '2026-01-09',
+    actualStart: '2026-01-05',
+    actualEnd: '2026-01-09',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  }
+  const stageOpen = {
+    id: 'idb-stage-key-BBB',
+    projectId: seedProject.id,
+    name: '水電',
+    order: 2,
+    status: 'in_progress' as const,
+    plannedStart: '2026-01-12',
+    plannedEnd: '2026-01-23',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  }
+
+  /** Seed one record of every M1 kind, using obviously fake data only. */
+  async function seedM1Data() {
+    await dbModule.putStage(stageDone)
+    await dbModule.putStage(stageOpen)
+    await dbModule.putPhoto({
+      id: 'idb-photo-key-1',
+      projectId: seedProject.id,
+      stageId: stageDone.id,
+      kind: 'progress',
+      takenOn: '2026-01-08',
+      fileName: 'demo-a.png',
+      mimeType: 'image/png',
+      blob: new Blob([new Uint8Array([1])], { type: 'image/png' }),
+      createdAt: '2026-01-08T00:00:00.000Z',
+    })
+    await dbModule.putPhoto({
+      id: 'idb-photo-key-2',
+      projectId: seedProject.id,
+      kind: 'before',
+      takenOn: '2026-01-03',
+      fileName: 'demo-b.png',
+      mimeType: 'image/png',
+      blob: new Blob([new Uint8Array([2])], { type: 'image/png' }),
+      createdAt: '2026-01-03T00:00:00.000Z',
+    })
+    await dbModule.putContract({
+      projectId: seedProject.id,
+      contractAmount: 1000000,
+      receivedAmount: 400000,
+      updatedAt: '2026-01-10T00:00:00.000Z',
+    })
+    await dbModule.putChangeOrder({
+      id: 'idb-change-key-1',
+      projectId: seedProject.id,
+      title: '示範追加：增加插座',
+      amount: 12000,
+      material: '示範材料',
+      note: '示範內部備註',
+      status: 'approved',
+      decidedOn: '2026-01-18',
+      createdAt: '2026-01-10T00:00:00.000Z',
+      updatedAt: '2026-01-18T00:00:00.000Z',
+    })
+    await dbModule.putChangeOrder({
+      id: 'idb-change-key-2',
+      projectId: seedProject.id,
+      title: '示範追減：取消層板',
+      amount: -3000,
+      status: 'pending',
+      createdAt: '2026-01-11T00:00:00.000Z',
+      updatedAt: '2026-01-11T00:00:00.000Z',
+    })
+    await dbModule.putAcceptanceItem({
+      id: 'idb-acc-key-1',
+      projectId: seedProject.id,
+      stageId: stageDone.id,
+      name: '示範驗收：垃圾清運',
+      passed: true,
+      checkedOn: '2026-01-09',
+      createdAt: '2026-01-09T00:00:00.000Z',
+      updatedAt: '2026-01-09T00:00:00.000Z',
+    })
+    await dbModule.putAcceptanceItem({
+      id: 'idb-acc-key-2',
+      projectId: seedProject.id,
+      stageId: stageDone.id,
+      name: '示範驗收：管線保護',
+      passed: false,
+      createdAt: '2026-01-09T01:00:00.000Z',
+      updatedAt: '2026-01-09T01:00:00.000Z',
+    })
+    await dbModule.putSchedule({
+      id: 'idb-schedule-key-1',
+      projectId: seedProject.id,
+      workerName: '示範水電師傅',
+      phone: FAKE_PHONE,
+      startOn: '2026-01-12',
+      endOn: '2026-01-23',
+      completed: false,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    })
+    await dbModule.putWarranty({
+      id: 'idb-warranty-key-1',
+      projectId: seedProject.id,
+      itemName: '示範保固項目',
+      provider: '示範廠商',
+      contact: FAKE_CONTACT,
+      startsOn: '2026-01-01',
+      endsOn: '2027-01-01',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    })
+  }
+
+  function snapshotFromUrl(url: string): ShareSnapshot {
+    const fragment = url.split('#')[1] ?? ''
+    const encoded = fragment
+      .split('&')
+      .find((p) => p.startsWith(`${SHARE_HASH_KEY}=`))!
+      .slice(SHARE_HASH_KEY.length + 1)
+    const b64 = encoded.replace(/-/g, '+').replace(/_/g, '/')
+    const padded = b64 + '='.repeat((4 - (b64.length % 4)) % 4)
+    const json = new TextDecoder().decode(Uint8Array.from(atob(padded), (c) => c.charCodeAt(0)))
+    return JSON.parse(json) as ShareSnapshot
+  }
+
+  function dialogUrl(): string {
+    return (screen.getByTestId('share-dialog-url') as HTMLInputElement).value
+  }
+
+  beforeEach(async () => {
+    await resetIndexedDb()
+    await putProject(seedProject)
+    setHash('')
+  })
+
+  it('AC-005: the share dialog starts with both personal-data boxes unticked and shows the warning', async () => {
+    await seedM1Data()
+    const clipboard = vi.fn<(text: string) => Promise<void>>(async () => undefined)
+    renderDashboard({ clipboard })
+    fireEvent.click(await screen.findByTestId('generate-share'))
+    await waitFor(() => expect(screen.getByTestId('share-dialog')).toBeInTheDocument())
+
+    expect(screen.getByTestId('share-include-address')).not.toBeChecked()
+    expect(screen.getByTestId('share-include-contacts')).not.toBeChecked()
+    expect(screen.getByLabelText('包含工程地址')).toBe(screen.getByTestId('share-include-address'))
+    expect(screen.getByLabelText('包含聯絡方式（工班電話、保固聯絡方式）')).toBe(
+      screen.getByTestId('share-include-contacts'),
+    )
+    const warning = screen.getByTestId('share-dialog-warning')
+    expect(warning).toHaveTextContent('連結未加密')
+    expect(warning).toHaveTextContent('無法撤銷')
+    expect(screen.getByTestId('share-facts-change-order-count')).toHaveTextContent('2 筆')
+    expect(screen.getByTestId('share-facts-acceptance')).toHaveTextContent('驗收 1/2')
+  })
+
+  it('AC-005: by default the generated and auto-copied link has no address or contact details', async () => {
+    await seedM1Data()
+    const clipboard = vi.fn<(text: string) => Promise<void>>(async () => undefined)
+    renderDashboard({ clipboard })
+    fireEvent.click(await screen.findByTestId('generate-share'))
+    await waitFor(() => expect(clipboard).toHaveBeenCalledTimes(1))
+
+    const copied = clipboard.mock.calls[0]![0]
+    expect(copied).toBe(dialogUrl())
+    const snapshot = snapshotFromUrl(copied)
+    const json = JSON.stringify(snapshot)
+    expect(json).not.toContain(FAKE_ADDRESS)
+    expect(json).not.toContain(FAKE_PHONE)
+    expect(json).not.toContain(FAKE_CONTACT)
+    expect(snapshot.project.address).toBeUndefined()
+    expect(snapshot.warranties![0]!.contact).toBeUndefined()
+    expect(snapshot.scheduleContacts).toBeUndefined()
+    expect(snapshot.privacy).toEqual({ includesAddress: false, includesContacts: false })
+    // The M1 sections are there.
+    expect(snapshot.changeOrders).toHaveLength(2)
+    expect(snapshot.contractSummary?.adjustedTotal).toBe(1012000)
+    expect(snapshot.acceptanceSummary).toMatchObject({ total: 2, passed: 1 })
+    expect(snapshot.photoReport?.stages).toEqual([
+      { stageId: 'stage-1', count: 1, latestTakenOn: '2026-01-08' },
+    ])
+    expect(snapshot.photoReport?.unassigned).toEqual({ count: 1, latestTakenOn: '2026-01-03' })
+    // No IndexedDB key, no Blob, no internal change-order detail.
+    expect(json).not.toMatch(/idb-[a-z]+-key/)
+    expect(json).not.toMatch(/blob/i)
+    expect(json).not.toContain('示範材料')
+    expect(json).not.toContain('示範內部備註')
+  })
+
+  it('AC-005: ticking 「包含工程地址」 puts the address — and only the address — into the link', async () => {
+    await seedM1Data()
+    const clipboard = vi.fn<(text: string) => Promise<void>>(async () => undefined)
+    renderDashboard({ clipboard })
+    fireEvent.click(await screen.findByTestId('generate-share'))
+    await waitFor(() => expect(clipboard).toHaveBeenCalledTimes(1))
+    const before = dialogUrl()
+
+    fireEvent.click(screen.getByTestId('share-include-address'))
+    await waitFor(() => expect(dialogUrl()).not.toBe(before))
+    expect(screen.getByTestId('share-include-address')).toBeChecked()
+    const snapshot = snapshotFromUrl(dialogUrl())
+    expect(snapshot.project.address).toBe(FAKE_ADDRESS)
+    expect(snapshot.privacy).toEqual({ includesAddress: true, includesContacts: false })
+    expect(JSON.stringify(snapshot)).not.toContain(FAKE_PHONE)
+    expect(JSON.stringify(snapshot)).not.toContain(FAKE_CONTACT)
+    expect(window.location.hash).toBe(`#${dialogUrl().split('#')[1]}`)
+    // A link with personal data is never copied automatically.
+    expect(clipboard).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByTestId('share-dialog-copy'))
+    await waitFor(() => expect(clipboard).toHaveBeenCalledTimes(2))
+    expect(clipboard.mock.calls[1]![0]).toBe(dialogUrl())
+
+    // Unticking removes it again.
+    fireEvent.click(screen.getByTestId('share-include-address'))
+    await waitFor(() =>
+      expect(snapshotFromUrl(dialogUrl()).project.address).toBeUndefined(),
+    )
+  })
+
+  it('AC-005: ticking 「包含聯絡方式」 adds worker phones and warranty contacts to the link', async () => {
+    await seedM1Data()
+    const clipboard = vi.fn<(text: string) => Promise<void>>(async () => undefined)
+    renderDashboard({ clipboard })
+    fireEvent.click(await screen.findByTestId('generate-share'))
+    await waitFor(() => expect(clipboard).toHaveBeenCalledTimes(1))
+
+    fireEvent.click(screen.getByTestId('share-include-contacts'))
+    await waitFor(() =>
+      expect(snapshotFromUrl(dialogUrl()).privacy?.includesContacts).toBe(true),
+    )
+    const snapshot = snapshotFromUrl(dialogUrl())
+    expect(snapshot.scheduleContacts).toEqual([
+      { id: 'schedule-1', workerName: '示範水電師傅', phone: FAKE_PHONE },
+    ])
+    expect(snapshot.warranties![0]!.contact).toBe(FAKE_CONTACT)
+    expect(snapshot.project.address).toBeUndefined()
+    expect(JSON.stringify(snapshot)).not.toMatch(/idb-[a-z]+-key/)
+  })
+
+  it('AC-005: reopening the dialog resets both boxes to unticked', async () => {
+    await seedM1Data()
+    const clipboard = vi.fn<(text: string) => Promise<void>>(async () => undefined)
+    renderDashboard({ clipboard })
+    fireEvent.click(await screen.findByTestId('generate-share'))
+    await waitFor(() => expect(screen.getByTestId('share-dialog')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('share-include-address'))
+    fireEvent.click(screen.getByTestId('share-include-contacts'))
+    await waitFor(() => expect(screen.getByTestId('share-include-contacts')).toBeChecked())
+    fireEvent.click(screen.getByTestId('share-dialog-close'))
+    await waitFor(() => expect(screen.queryByTestId('share-dialog')).not.toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('generate-share'))
+    await waitFor(() => expect(screen.getByTestId('share-dialog')).toBeInTheDocument())
+    expect(screen.getByTestId('share-include-address')).not.toBeChecked()
+    expect(screen.getByTestId('share-include-contacts')).not.toBeChecked()
+    const snapshot = snapshotFromUrl(dialogUrl())
+    expect(snapshot.project.address).toBeUndefined()
+    expect(snapshot.scheduleContacts).toBeUndefined()
+  })
+
+  it('AC-005: the address box is disabled when the project has no address', async () => {
+    await resetIndexedDb()
+    const { address: _address, ...withoutAddress } = seedProject
+    void _address
+    await putProject(withoutAddress)
+    renderDashboard({ clipboard: vi.fn(async () => undefined) })
+    fireEvent.click(await screen.findByTestId('generate-share'))
+    await waitFor(() => expect(screen.getByTestId('share-dialog')).toBeInTheDocument())
+    expect(screen.getByTestId('share-include-address')).toBeDisabled()
+    expect(screen.getByTestId('share-privacy')).toHaveTextContent('本工程未填寫地址')
+  })
+
+  it('AC-005: the read-only page shows the M1 sections and has no editing control', async () => {
+    await seedM1Data()
+    const clipboard = vi.fn<(text: string) => Promise<void>>(async () => undefined)
+    renderDashboard({ clipboard })
+    fireEvent.click(await screen.findByTestId('generate-share'))
+    await waitFor(() => expect(clipboard).toHaveBeenCalledTimes(1))
+    const url = clipboard.mock.calls[0]![0]
+    cleanup()
+
+    // Open the link the way a homeowner would: only the URL, no local data.
+    await resetIndexedDb()
+    setHash(url.split('#')[1]!)
+    renderAppShell()
+    await waitFor(() => expect(screen.getByTestId('readonly-banner')).toBeInTheDocument())
+
+    // Contract & receipts summary.
+    const contract = screen.getByTestId('readonly-contract-summary')
+    for (const label of ['原合約', '已核准變更合計', '調整後總額', '已收', '待收']) {
+      expect(within(contract).getByText(label)).toBeInTheDocument()
+    }
+    expect(contract).toHaveTextContent(/1,?012,?000/)
+    expect(contract).toHaveTextContent(/612,?000/)
+    // Change orders: title, amount, status + the local-record notice.
+    const orders = screen.getByTestId('readonly-change-order-list')
+    expect(within(orders).getByText('示範追加：增加插座')).toBeInTheDocument()
+    expect(within(orders).getByText('已核准')).toBeInTheDocument()
+    expect(within(orders).getByText('待決定')).toBeInTheDocument()
+    expect(orders).toHaveTextContent(/追加 \+12,?000/)
+    expect(orders).toHaveTextContent(/追減 -3,?000/)
+    expect(screen.getByTestId('readonly-change-order-notice')).toHaveTextContent(
+      '本機紀錄，非屋主線上簽核',
+    )
+    // Acceptance progress.
+    expect(screen.getByTestId('readonly-acceptance-summary')).toHaveTextContent('驗收 1/2')
+    expect(screen.getByTestId('readonly-acceptance-stage-1')).toHaveTextContent('拆除')
+    expect(screen.getByTestId('readonly-acceptance-stage-1')).toHaveTextContent(
+      '階段已標記完成，但仍有 1 項驗收未通過',
+    )
+    // Photo progress report: count + latest date per stage, 未分類, empty stage.
+    expect(screen.getByTestId('readonly-photo-report-stage-1')).toHaveTextContent('1 張')
+    expect(screen.getByTestId('readonly-photo-report-stage-1')).toHaveTextContent(
+      '最新拍攝日：2026-01-08',
+    )
+    expect(screen.getByTestId('readonly-photo-report-stage-2')).toHaveTextContent('尚無照片')
+    expect(screen.getByTestId('readonly-photo-report-unassigned')).toHaveTextContent('未分類')
+    expect(screen.getByTestId('readonly-photo-report-note')).toHaveTextContent(
+      '照片原圖僅存於業者裝置，雲端照片分享規劃於後續版本',
+    )
+    // Privacy note; nothing personal is on the page.
+    expect(screen.getByTestId('readonly-privacy-note')).toHaveTextContent('連結未加密、無法撤銷')
+    expect(screen.getByTestId('readonly-privacy-note')).toHaveTextContent(
+      '此快照不含工程地址與聯絡方式',
+    )
+    expect(screen.queryByTestId('readonly-project-address')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('readonly-schedule-contacts')).not.toBeInTheDocument()
+    expect(document.body.textContent).not.toContain(FAKE_ADDRESS)
+    expect(document.body.textContent).not.toContain(FAKE_PHONE)
+    expect(document.body.textContent).not.toContain(FAKE_CONTACT)
+
+    // Read-only: no button, form field or M1 editing control anywhere.
+    expect(screen.queryAllByRole('button')).toHaveLength(0)
+    expect(screen.queryAllByRole('checkbox')).toHaveLength(0)
+    expect(screen.queryAllByRole('textbox')).toHaveLength(0)
+    expect(screen.queryAllByRole('combobox')).toHaveLength(0)
+    for (const id of [
+      'add-change-order',
+      'edit-contract',
+      'open-help',
+      'generate-share',
+      'add-acceptance-stage-1',
+    ]) {
+      expect(screen.queryByTestId(id)).not.toBeInTheDocument()
+    }
+    expect(screen.queryByRole('button', { name: /核准|拒絕|編輯|刪除|新增/ })).not.toBeInTheDocument()
+  })
+
+  it('AC-005: an opted-in link shows the address and contact details on the read-only page', async () => {
+    await seedM1Data()
+    const clipboard = vi.fn<(text: string) => Promise<void>>(async () => undefined)
+    renderDashboard({ clipboard })
+    fireEvent.click(await screen.findByTestId('generate-share'))
+    await waitFor(() => expect(clipboard).toHaveBeenCalledTimes(1))
+    fireEvent.click(screen.getByTestId('share-include-address'))
+    fireEvent.click(screen.getByTestId('share-include-contacts'))
+    await waitFor(() =>
+      expect(snapshotFromUrl(dialogUrl()).privacy).toEqual({
+        includesAddress: true,
+        includesContacts: true,
+      }),
+    )
+    const url = dialogUrl()
+    cleanup()
+
+    setHash(url.split('#')[1]!)
+    renderAppShell()
+    await waitFor(() => expect(screen.getByTestId('readonly-banner')).toBeInTheDocument())
+    expect(screen.getByTestId('readonly-project-address')).toHaveTextContent(
+      `工程地址：${FAKE_ADDRESS}`,
+    )
+    expect(screen.getByTestId('readonly-schedule-contacts')).toHaveTextContent('示範水電師傅')
+    expect(screen.getByTestId('readonly-schedule-contacts')).toHaveTextContent(FAKE_PHONE)
+    expect(screen.getByTestId('readonly-warranty-list')).toHaveTextContent(`聯絡：${FAKE_CONTACT}`)
+    expect(screen.getByTestId('readonly-privacy-note')).toHaveTextContent(
+      '分享者選擇包含：工程地址、聯絡方式',
+    )
+    expect(screen.queryAllByRole('button')).toHaveLength(0)
+  })
+
+  it('AC-005: a version 1 link still opens, without the M1 sections', async () => {
+    const current = buildShareSnapshot({
+      project: seedProject,
+      stages: [stageDone],
+      stageSummary: { total: 1, completed: 1, inProgress: 0, blocked: 0, notStarted: 0, percentComplete: 100 },
+      gantt: { totalDays: 33, days: [], rows: [] },
+      photos: [],
+      budgetSummary: {
+        total: 0,
+        totalPlanned: 0,
+        totalActual: 0,
+        remaining: 0,
+        isOverrun: false,
+        totalOverrun: 0,
+        overrunItemCount: 0,
+        paymentCounts: { unpaid: 0, partial: 0, paid: 0 },
+      },
+    })
+    const { privacy, changeOrders, contractSummary, acceptanceSummary, photoReport, ...rest } = current
+    void privacy
+    void changeOrders
+    void contractSummary
+    void acceptanceSummary
+    void photoReport
+    const legacy = { ...rest, version: 1 } as ShareSnapshot
+    setHash(`${SHARE_HASH_KEY}=${encodeShareSnapshot(legacy)}`)
+
+    renderAppShell()
+    await waitFor(() => expect(screen.getByTestId('readonly-banner')).toBeInTheDocument())
+    expect(screen.queryByTestId('readonly-error')).not.toBeInTheDocument()
+    expect(screen.getByTestId('readonly-project-name')).toHaveTextContent('我的裝修工程')
+    expect(screen.getByTestId('readonly-stage-row-stage-1')).toBeInTheDocument()
+    expect(screen.queryByTestId('readonly-contract-summary')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('readonly-change-order-list')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('readonly-acceptance-summary')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('readonly-photo-report')).not.toBeInTheDocument()
+  })
+
+  it('AC-005: a tampered M1 section shows the friendly error page instead of crashing', async () => {
+    const snapshot = buildShareSnapshot({
+      project: seedProject,
+      stages: [stageDone],
+      stageSummary: { total: 1, completed: 1, inProgress: 0, blocked: 0, notStarted: 0, percentComplete: 100 },
+      gantt: { totalDays: 33, days: [], rows: [] },
+      photos: [],
+      budgetSummary: {
+        total: 0,
+        totalPlanned: 0,
+        totalActual: 0,
+        remaining: 0,
+        isOverrun: false,
+        totalOverrun: 0,
+        overrunItemCount: 0,
+        paymentCounts: { unpaid: 0, partial: 0, paid: 0 },
+      },
+    })
+    const tampered = { ...snapshot, changeOrders: 'not-a-list' } as unknown as ShareSnapshot
+    setHash(`${SHARE_HASH_KEY}=${encodeShareSnapshot(tampered)}`)
+
+    renderAppShell()
+    await waitFor(() => expect(screen.getByTestId('readonly-error')).toBeInTheDocument())
+    expect(screen.queryByTestId('readonly-banner')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('generate-share')).not.toBeInTheDocument()
+  })
+
+  it('AC-005: opening a share link never reads the M1 stores from IndexedDB', async () => {
+    const spies = [
+      vi.spyOn(dbModule, 'getAllChangeOrders'),
+      vi.spyOn(dbModule, 'getAllContracts'),
+      vi.spyOn(dbModule, 'getAllAcceptanceItems'),
+      vi.spyOn(dbModule, 'getAllSchedules'),
+      vi.spyOn(dbModule, 'getAllWarranties'),
+    ]
+    const snapshot = buildShareSnapshot({
+      project: seedProject,
+      stages: [stageDone],
+      stageSummary: { total: 1, completed: 1, inProgress: 0, blocked: 0, notStarted: 0, percentComplete: 100 },
+      gantt: { totalDays: 33, days: [], rows: [] },
+      photos: [],
+      budgetSummary: {
+        total: 0,
+        totalPlanned: 0,
+        totalActual: 0,
+        remaining: 0,
+        isOverrun: false,
+        totalOverrun: 0,
+        overrunItemCount: 0,
+        paymentCounts: { unpaid: 0, partial: 0, paid: 0 },
+      },
+    })
+    setHash(`${SHARE_HASH_KEY}=${encodeShareSnapshot(snapshot)}`)
+    renderAppShell()
+    await waitFor(() => expect(screen.getByTestId('readonly-banner')).toBeInTheDocument())
+    for (const spy of spies) expect(spy).not.toHaveBeenCalled()
   })
 })
