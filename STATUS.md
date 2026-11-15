@@ -2,7 +2,7 @@
 
 - Repo：`openclawsean024-create/renovation-tracker`（預設分支 `main`，public）
 - 基準 commit：`main` @ `9ceea39`；M1 開發分支 `feat/m1`（自 `chore/prd-rebuild` @ `344da4d` 開出）
-- 狀態：🟡 **M1（AC-001～AC-009）已在 `feat/m1` 實作並通過本機品質閘門；待 Sean 覆審 PR 與 M1 Exit gate**（2026-11-16）
+- 狀態：🟡 **M1（AC-001～AC-009）已在 `feat/m1` 實作，本機品質閘門與 PR CI 皆通過；待 Sean 覆審 PR（`openclawsean024-create/renovation-tracker#2`）與 M1 Exit gate**（2026-11-16）
 - 尚未做：merge、push 到 `main`、production deploy、Notion 同步、封存 decoration-tracker — 皆不在 agent session 內執行。
 - 規格：`PRD/SPEC.md` v5.1；目前里程碑：`GOAL.md`（M1）
 - 技術棧：Vite 5 + React 18 + TypeScript strict + IndexedDB（local-first，無後端）
@@ -19,7 +19,7 @@
 | AC-004 照片進度回報 | 通過 | 功能 `8591cb9`、互動測試 `d3519e3` | `npm test -- photoReport` | exit 0；2 檔／15 tests 通過（`photoReport.test.ts`、`Dashboard.photoReport.test.tsx`）；不接任何雲端儲存（測試確認不發出 `fetch`） |
 | AC-005 屋主端分享連結強化 | 通過 | `bc0d87b` | `npm test -- share` | exit 0；2 檔／105 tests 通過（`share.test.ts`、`Dashboard.share.test.tsx` 的 AC-005 區塊；既有 FR-004 測試未刪改斷言） |
 | AC-006 README 與使用說明 | 通過 | `c47ffb1` | repo 根目錄：GOAL AC-006 的兩條 `grep`；`web/`：`npm test -- help` | README 標題檢查無輸出；`docs/USER-GUIDE.md` 檢查 exit 0；`npm test -- help` exit 0，1 檔／6 tests 通過（`Dashboard.help.test.tsx`） |
-| AC-007 品質閘門與 CI | 本機通過；PR 上 GitHub Actions 結果見下方「Deterministic checks」 | `dc7f231` | `npm run lint && npm run typecheck && npm test && npm run build`；repo 根目錄：`git diff main -- web/src/__tests__/Dashboard.schedule.test.tsx \| grep -c '^-.*expect('` | lint 0 errors、typecheck exit 0、test 全數通過、build exit 0；被刪除的 `expect(` 行數 = 0。測試：`qualityGate.test.ts`、`Dashboard.schedule.test.tsx`（標 AC-007 的測試） |
+| AC-007 品質閘門與 CI | 通過（本機與 PR 的 GitHub Actions 皆綠燈） | `dc7f231` | `npm run lint && npm run typecheck && npm test && npm run build`；repo 根目錄：`git diff main -- web/src/__tests__/Dashboard.schedule.test.tsx \| grep -c '^-.*expect('` | lint 0 errors、typecheck exit 0、test 全數通過、build exit 0；被刪除的 `expect(` 行數 = 0。測試：`qualityGate.test.ts`、`Dashboard.schedule.test.tsx`（標 AC-007 的測試） |
 | AC-008 假資料與憑證安全 | 通過 | `dc7f231`（電話）、`bc0d87b`（地址）、`c47ffb1`（掃描測試） | repo 根目錄：GOAL AC-008 的 `git grep` 與 `git ls-files \| grep -E '(^\|/)\.env'`；`web/`：`npm test -- fakeData` | 兩條指令皆無輸出；`fakeData.test.ts` 7 tests 通過。測試電話改為 `0900-000-000`、測試地址改為 `測試市示範路 1 號` |
 | AC-009 合併完成對照 | 通過 | `6fb29e6` | repo 根目錄：`grep -c '已搬入' STATUS.md`；`gh repo view openclawsean024-create/decoration-tracker --json isArchived --jq .isArchived`；`web/`：`npm test -- mergeChecklist` | `grep -c` ≥ 4；`isArchived` 輸出 `false`（2026-11-16 查詢，`pushedAt` 仍為 2026-09-06，本 session 未對該 repo 做任何寫入）；`mergeChecklist.test.ts` 7 tests 通過 |
 
@@ -105,7 +105,7 @@
 | `npm run typecheck` | 0 | `tsc --noEmit` 通過 |
 | `npm test` | 0 | 39 檔／620 tests 全數通過（M1 前為 25 檔／438 tests，其中 3 失敗） |
 | `npm run build` | 0 | `tsc --noEmit && vite build` 完成（JS 302.80 kB／gzip 86.53 kB、CSS 45.15 kB） |
-| GitHub Actions `ci.yml` | — | __CI__ |
+| GitHub Actions `ci.yml`（PR `openclawsean024-create/renovation-tracker#2`） | — | run `43756028967`（commit `9604dc5`，`pull_request` 事件，Node 22）：`lint`、`test`、`build` 皆 success，`deploy` skipped（停用）；`gh pr checks 2` 顯示三項 pass。M1 前最近 3 次 run 皆為 workflow 解析失敗。之後的 commit 以 PR 頁面的 checks 為準 |
 
 GOAL 指定的根目錄檢查：
 
