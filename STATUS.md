@@ -17,11 +17,11 @@
 | AC-002 合約金額與收款概要 | 通過 | `8591cb9` | `npm test -- contract` | exit 0；2 檔／29 tests 通過（`contract.test.ts`、`Dashboard.contract.test.tsx`）；另 `acceptance.db.test.ts` 含 AC-002 合約紀錄 round-trip 與「與 FR-003 預算分開儲存」 |
 | AC-003 階段驗收清單 | 通過 | 功能 `8591cb9`、互動測試 `d3519e3` | `npm test -- acceptance` | exit 0；3 檔／28 tests 通過（`acceptance.test.ts`、`acceptance.db.test.ts`、`Dashboard.acceptance.test.tsx`） |
 | AC-004 照片進度回報 | 通過 | 功能 `8591cb9`、互動測試 `d3519e3` | `npm test -- photoReport` | exit 0；2 檔／15 tests 通過（`photoReport.test.ts`、`Dashboard.photoReport.test.tsx`）；不接任何雲端儲存（測試確認不發出 `fetch`） |
-| AC-005 屋主端分享連結強化 | 通過 | `bc0d87b` | `npm test -- share` | exit 0；2 檔／104 tests 通過（`share.test.ts`、`Dashboard.share.test.tsx` 的 AC-005 區塊；既有 FR-004 測試未刪改斷言） |
+| AC-005 屋主端分享連結強化 | 通過 | `bc0d87b` | `npm test -- share` | exit 0；2 檔／105 tests 通過（`share.test.ts`、`Dashboard.share.test.tsx` 的 AC-005 區塊；既有 FR-004 測試未刪改斷言） |
 | AC-006 README 與使用說明 | 通過 | `c47ffb1` | repo 根目錄：GOAL AC-006 的兩條 `grep`；`web/`：`npm test -- help` | README 標題檢查無輸出；`docs/USER-GUIDE.md` 檢查 exit 0；`npm test -- help` exit 0，1 檔／6 tests 通過（`Dashboard.help.test.tsx`） |
 | AC-007 品質閘門與 CI | 本機通過；PR 上 GitHub Actions 結果見下方「Deterministic checks」 | `dc7f231` | `npm run lint && npm run typecheck && npm test && npm run build`；repo 根目錄：`git diff main -- web/src/__tests__/Dashboard.schedule.test.tsx \| grep -c '^-.*expect('` | lint 0 errors、typecheck exit 0、test 全數通過、build exit 0；被刪除的 `expect(` 行數 = 0。測試：`qualityGate.test.ts`、`Dashboard.schedule.test.tsx`（標 AC-007 的測試） |
 | AC-008 假資料與憑證安全 | 通過 | `dc7f231`（電話）、`bc0d87b`（地址）、`c47ffb1`（掃描測試） | repo 根目錄：GOAL AC-008 的 `git grep` 與 `git ls-files \| grep -E '(^\|/)\.env'`；`web/`：`npm test -- fakeData` | 兩條指令皆無輸出；`fakeData.test.ts` 7 tests 通過。測試電話改為 `0900-000-000`、測試地址改為 `測試市示範路 1 號` |
-| AC-009 合併完成對照 | 通過 | 本檔與 `mergeChecklist.test.ts` 所在 commit（`git log --oneline -- web/src/__tests__/mergeChecklist.test.ts`） | repo 根目錄：`grep -c '已搬入' STATUS.md`；`gh repo view openclawsean024-create/decoration-tracker --json isArchived --jq .isArchived`；`web/`：`npm test -- mergeChecklist` | `grep -c` ≥ 4；`isArchived` 輸出 `false`（2026-11-16 查詢，`pushedAt` 仍為 2026-09-06，本 session 未對該 repo 做任何寫入）；`mergeChecklist.test.ts` 7 tests 通過 |
+| AC-009 合併完成對照 | 通過 | `6fb29e6` | repo 根目錄：`grep -c '已搬入' STATUS.md`；`gh repo view openclawsean024-create/decoration-tracker --json isArchived --jq .isArchived`；`web/`：`npm test -- mergeChecklist` | `grep -c` ≥ 4；`isArchived` 輸出 `false`（2026-11-16 查詢，`pushedAt` 仍為 2026-09-06，本 session 未對該 repo 做任何寫入）；`mergeChecklist.test.ts` 7 tests 通過 |
 
 ## Notion 對應
 
@@ -103,8 +103,8 @@
 | `npm ci` | 0 | 乾淨安裝完成 |
 | `npm run lint` | 0 | `eslint .`：0 errors、4 warnings（`react-refresh/only-export-components`） |
 | `npm run typecheck` | 0 | `tsc --noEmit` 通過 |
-| `npm test` | 0 | 39 檔／619 tests 全數通過（M1 前為 25 檔／438 tests，其中 3 失敗） |
-| `npm run build` | 0 | `tsc --noEmit && vite build` 完成（JS 302.80 kB／gzip 86.53 kB、CSS 45.13 kB） |
+| `npm test` | 0 | 39 檔／620 tests 全數通過（M1 前為 25 檔／438 tests，其中 3 失敗） |
+| `npm run build` | 0 | `tsc --noEmit && vite build` 完成（JS 302.80 kB／gzip 86.53 kB、CSS 45.15 kB） |
 | GitHub Actions `ci.yml` | — | __CI__ |
 
 GOAL 指定的根目錄檢查：
@@ -142,7 +142,9 @@ decoration-tracker（只讀，未修改）：本 session 僅以 `gh api`／`gh r
 - 資料僅存於單一裝置的 IndexedDB；清除瀏覽器資料即遺失，M1 無匯出／備份（FR-017，M2）。
 - 分享 URL 未加密、不可撤銷、不會過期；M1 以「預設不含地址與聯絡方式」降低外洩面，撤銷需 FR-015。
 - 分享 URL 長度隨資料量成長（階段、照片 metadata、變更單都在 hash 內）；未量測瀏覽器或通訊軟體的長度上限。
-- M1 Exit gate 的瀏覽器 smoke（含 375px 無頁面級水平捲軸）尚未由獨立驗收者執行；本次僅以 jsdom 測試與 `npm run build` 驗證。
+- M1 Exit gate 的瀏覽器 smoke 尚未由獨立驗收者執行。開發者自測（2026-11-16，`npm run dev`，非獨立驗收）：新增並核准變更單 → 調整後總額 +12,000；新增驗收項目並勾選 → 檢查日自動填入、階段列顯示「驗收 1/1」；重新整理後資料仍在；分享對話框兩個個資選項預設未勾、產生的 snapshot 為 version 2 且不含地址；以該連結開啟唯讀頁，按鈕與輸入欄位數為 0；375×812 視窗下 `scrollWidth === clientWidth`，M1 區塊無元素超出右緣。
+- 自測時發現並已修正：分享對話框加入個資選項後高度超過 768px 視窗，`.modal` 原為 `overflow: hidden` 導致「複製分享連結」被裁掉；已改為垂直捲動（`Dashboard.share.test.tsx` 有對應檢查）。
+- 既有問題（非 M1 造成，未處理）：`.modal` 的 `padding` 為 0，所有對話框內容貼齊邊框；屬 UI polish 範圍，請於 UI 覆審時決定。
 - `npm run lint` 目前有 4 個 `react-refresh/only-export-components` warning（既有 `store.tsx`、`PhotoPreview.tsx` 的匯出方式），不影響 exit code。
 
 ## 下一步

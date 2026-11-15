@@ -716,7 +716,11 @@ dialog {
   box-shadow: 0 24px 80px rgb(23 32 51 / 22%);
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  /* Content taller than the viewport (e.g. the share dialog with its privacy
+     options, or the help dialog) must stay reachable: scroll vertically
+     inside the modal instead of clipping the action buttons. */
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 .modal-wide { width: min(720px, calc(100% - 32px)); }
 .modal h2 { margin: 0; }

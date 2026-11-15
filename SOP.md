@@ -25,7 +25,7 @@ npm run build
 |---|---|---|---|
 | 安裝 | `npm ci` | 可用（有 `package-lock.json`） | exit 0 |
 | Typecheck | `npm run typecheck`（`tsc --noEmit`） | 可用 | exit 0 |
-| Unit／元件測試 | `npm test`（`vitest run`） | 可用 | `feat/m1`：39 檔／619 tests 全數通過 → exit 0（M1 前 `main`：25 檔／438 tests，3 失敗） |
+| Unit／元件測試 | `npm test`（`vitest run`） | 可用 | `feat/m1`：39 檔／620 tests 全數通過 → exit 0（M1 前 `main`：25 檔／438 tests，3 失敗） |
 | 單一測試檔 | `npm test -- <檔名關鍵字>`，例如 `npm test -- share` | 可用 | — |
 | Build | `npm run build`（`tsc --noEmit && vite build`） | 可用 | exit 0 |
 | 本機開發 | `npm run dev` | 可用 | 未於本次執行 |

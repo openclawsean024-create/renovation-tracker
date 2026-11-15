@@ -1360,6 +1360,18 @@ describe('AC-005 owner share link — privacy opt-in and M1 sections', () => {
     expect(screen.queryByTestId('generate-share')).not.toBeInTheDocument()
   })
 
+  it('AC-005: dialogs scroll instead of clipping, so the share buttons stay reachable', async () => {
+    // Regression guard from the browser smoke: with the privacy options the
+    // share dialog is taller than a 768px viewport; `.modal` must scroll.
+    const fs = await import('node:fs')
+    const path = await import('node:path')
+    const css = fs.readFileSync(path.resolve(process.cwd(), 'src/index.css'), 'utf8')
+    const modalRule = css.match(/\.modal,\s*dialog\s*\{[^}]*\}/)
+    expect(modalRule).not.toBeNull()
+    expect(modalRule![0]).toMatch(/max-height:\s*calc\(100dvh - 32px\)/)
+    expect(modalRule![0]).toMatch(/overflow-y:\s*auto/)
+  })
+
   it('AC-005: opening a share link never reads the M1 stores from IndexedDB', async () => {
     const spies = [
       vi.spyOn(dbModule, 'getAllChangeOrders'),
