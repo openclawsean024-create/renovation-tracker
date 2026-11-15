@@ -2,7 +2,7 @@
 
 - Repo：`openclawsean024-create/renovation-tracker`（預設分支 `main`，public）
 - 基準 commit：`main` @ `9ceea39`；M1 開發分支 `feat/m1`（自 `chore/prd-rebuild` @ `344da4d` 開出）
-- 狀態：🟡 **M1（AC-001～AC-009）已在 `feat/m1` 實作，本機品質閘門與 PR CI 皆通過；待 Sean 覆審 PR（`openclawsean024-create/renovation-tracker#2`）與 M1 Exit gate**（2026-11-16）
+- 狀態：🟡 **M1（AC-001～AC-009）已在 `feat/m1` 實作，本機品質閘門、PR CI 與獨立驗收皆通過；Exit gate 只剩 Sean 覆審 PR（`openclawsean024-create/renovation-tracker#2`）**（2026-11-16）
 - 尚未做：merge、push 到 `main`、production deploy、Notion 同步、封存 decoration-tracker — 皆不在 agent session 內執行。
 - 規格：`PRD/SPEC.md` v5.1；目前里程碑：`GOAL.md`（M1）
 - 技術棧：Vite 5 + React 18 + TypeScript strict + IndexedDB（local-first，無後端）
@@ -126,6 +126,33 @@ GOAL 指定的根目錄檢查：
 
 decoration-tracker（只讀，未修改）：本 session 僅以 `gh api`／`gh repo view` 讀取其 `eslint.config.js`、`package.json`、`src/lib/db.ts` 作為重寫參考；未 clone、未 push、未封存。
 
+## M1 Exit gate — 獨立驗收（2026-11-16）
+
+由一個未參與開發、沒有開發脈絡的獨立驗收 agent 執行；只讀、未修改任何 repo。**Sean 的範圍與 UI 覆審不在此範圍內，仍待執行。**
+
+- 驗收對象：`feat/m1` @ `11897e1`，全新 clone、`web/` 無既有 `node_modules`；Node v26.13.1（CI 為 Node 22，已在 PR 上綠燈）。
+- 乾淨安裝重跑：`npm ci`、`npm run lint`（0 errors／4 warnings）、`npm run typecheck`、`npm test`（39 檔／620 tests）、`npm run build` 全部 exit 0。GOAL AC-006～AC-009 的根目錄指令結果與開發端一致。
+- 測試抽查（AC-001、AC-003、AC-005）：斷言對應 AC 要求，不是空斷言。`git diff main -- web/src/__tests__` 無刪除測試、無 `.skip`／`.only`，3 個被替換的 `expect(` 都有一對一等價替代。
+
+| 瀏覽器 smoke（內建瀏覽器、`npm run dev`） | 結果 | 觀察 |
+|---|---|---|
+| 變更單核准／拒絕 | PASS | 待決定時合計 0；核准後 +12,000；拒絕的 30,000 不計入；合約 1,000,000／已收 400,000 時調整後 1,012,000、待收 612,000；「本機紀錄，非屋主線上簽核」可見 |
+| 驗收勾選 | PASS | 勾選後出現檢查日，區塊與階段列皆「驗收 1/2」；階段改已完成後兩處出現未通過警示 |
+| 照片進度回報 | 空狀態 PASS；上傳部分驗證 | 空階段顯示「尚無照片」；工具無法操作原生檔案選擇器，改以 JS 把合成 PNG 放入表單的 file input 後，該階段顯示「1 張」與最新拍攝日 |
+| 分享預設遮蔽個資 | PASS（地址未驗證） | 兩個選項預設未勾、警示可見；預設 payload 不含電話與聯絡方式，勾選後才含；唯讀頁 button／input 皆 0；三種竄改 hash 都顯示錯誤頁 |
+| 重新整理後持久化 | PASS | 合約、變更單狀態與紀錄日、驗收與檢查日都保留 |
+| 375px | PASS | 編輯頁與唯讀頁 `scrollWidth = clientWidth = 375`；逐元素檢查無未裁切溢出；變更單表單與分享對話框按鈕可點 |
+| Console | PASS | 0 errors |
+
+驗收者回報的缺陷與疑點（未修正，列給 Sean 覆審決定）：
+
+1. **中**：唯讀頁橫幅以純文字印出整條分享連結（約 4,750 字元），手機上要捲過約三個螢幕才看到內容。此橫幅為 M1 前既有行為（既有測試 `readonly-source-url` 鎖定），但 M1 加入更多區塊後連結變長，影響變明顯。
+2. **中**：「包含工程地址」在實際 App 中無法勾選：seed 工程沒有地址，M1 也沒有輸入地址的 UI，因此只有單元測試覆蓋。是否要在 M1 加入地址欄位，待 Sean 決定。
+3. **低**：分享快照的「快照產生時間」與分享對話框「建立日期」使用 UTC 且未標時區，台灣時間 00:00–08:00 產生的連結會差一天（既有行為）。
+4. **低**：竄改的連結錯誤頁會露出瀏覽器原始英文例外訊息（既有行為）。
+5. **低**：照片沒填說明時，照片進度回報以檔名代替說明，檔名可能含不想顯示的資訊。
+6. **資訊**：`npm audit` 回報 17 個弱點（含 2 critical），未確認是否只影響 dev 相依。
+
 ## 待確認事項（沿用 GOAL.md 寫法，本次未自行決定）
 
 | 事項 | SPEC／GOAL 的寫法 | M1 的處理 |
@@ -142,7 +169,7 @@ decoration-tracker（只讀，未修改）：本 session 僅以 `gh api`／`gh r
 - 資料僅存於單一裝置的 IndexedDB；清除瀏覽器資料即遺失，M1 無匯出／備份（FR-017，M2）。
 - 分享 URL 未加密、不可撤銷、不會過期；M1 以「預設不含地址與聯絡方式」降低外洩面，撤銷需 FR-015。
 - 分享 URL 長度隨資料量成長（階段、照片 metadata、變更單都在 hash 內）；未量測瀏覽器或通訊軟體的長度上限。
-- M1 Exit gate 的瀏覽器 smoke 尚未由獨立驗收者執行。開發者自測（2026-11-16，`npm run dev`，非獨立驗收）：新增並核准變更單 → 調整後總額 +12,000；新增驗收項目並勾選 → 檢查日自動填入、階段列顯示「驗收 1/1」；重新整理後資料仍在；分享對話框兩個個資選項預設未勾、產生的 snapshot 為 version 2 且不含地址；以該連結開啟唯讀頁，按鈕與輸入欄位數為 0；375×812 視窗下 `scrollWidth === clientWidth`，M1 區塊無元素超出右緣。
+- M1 Exit gate 的獨立驗收已執行（見上方「M1 Exit gate — 獨立驗收」）。先前的開發者自測（2026-11-16，`npm run dev`，非獨立驗收）：新增並核准變更單 → 調整後總額 +12,000；新增驗收項目並勾選 → 檢查日自動填入、階段列顯示「驗收 1/1」；重新整理後資料仍在；分享對話框兩個個資選項預設未勾、產生的 snapshot 為 version 2 且不含地址；以該連結開啟唯讀頁，按鈕與輸入欄位數為 0；375×812 視窗下 `scrollWidth === clientWidth`，M1 區塊無元素超出右緣。
 - 自測時發現並已修正：分享對話框加入個資選項後高度超過 768px 視窗，`.modal` 原為 `overflow: hidden` 導致「複製分享連結」被裁掉；已改為垂直捲動（`Dashboard.share.test.tsx` 有對應檢查）。
 - 既有問題（非 M1 造成，未處理）：`.modal` 的 `padding` 為 0，所有對話框內容貼齊邊框；屬 UI polish 範圍，請於 UI 覆審時決定。
 - `npm run lint` 目前有 4 個 `react-refresh/only-export-components` warning（既有 `store.tsx`、`PhotoPreview.tsx` 的匯出方式），不影響 exit code。
@@ -150,5 +177,5 @@ decoration-tracker（只讀，未修改）：本 session 僅以 `gh api`／`gh r
 ## 下一步
 
 1. Sean 覆審 M1 PR：範圍、UI（`PRD/UI-SPEC.md` v1.4）、schema v6 與上方「需 Sean 人審」項目。
-2. 由獨立驗收者執行 GOAL Exit gate：乾淨安裝後 `npm ci && npm run lint && npm run typecheck && npm test && npm run build` 與瀏覽器 smoke。
+2. ~~由獨立驗收者執行 GOAL Exit gate~~：已完成（2026-11-16），結果與缺陷清單見「M1 Exit gate — 獨立驗收」；其中缺陷 1、2 請在覆審時決定是否於合併前處理。
 3. 確認待確認事項（產品名稱、部署目標）；合併與 release 後同步 Notion。M2 與任何外部整合在 Exit gate 通過前不開始。
