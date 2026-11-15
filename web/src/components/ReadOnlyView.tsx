@@ -691,7 +691,12 @@ function ReadOnlyBanner({ sourceUrl }: { sourceUrl: string }) {
           這是「{sourceUrl.length > 0 ? '分享連結' : 'URL 分享連結'}」產生的唯讀快照，
           不可新增、編輯或刪除資料，也不會寫入本機 IndexedDB。
         </p>
-        <p className="readonly-banner-source" data-testid="readonly-source-url">{sourceUrl}</p>
+        {/* Only the page address is shown. The full link carries the whole
+            encoded snapshot (thousands of characters) and printing it pushed
+            the content several screens down on phones. */}
+        <p className="readonly-banner-source" data-testid="readonly-source-url">
+          {shareUrlLabel(sourceUrl)}
+        </p>
       </div>
     </section>
   )
@@ -826,6 +831,14 @@ function ReadOnlyGantt({ project, stages }: { project: Project; stages: Stage[] 
       </div>
     </>
   )
+}
+
+/** Page address without the encoded snapshot, e.g. `http://localhost:5173/`. */
+export function shareUrlLabel(sourceUrl: string): string {
+  if (!sourceUrl) return ''
+  const hashIndex = sourceUrl.indexOf('#')
+  const base = hashIndex === -1 ? sourceUrl : sourceUrl.slice(0, hashIndex)
+  return hashIndex === -1 ? base : `${base}（分享快照）`
 }
 
 function formatGeneratedAt(iso: string): string {

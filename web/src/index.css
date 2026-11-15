@@ -1481,6 +1481,12 @@ body.readonly .gantt-hit { pointer-events: none; }
   font-size: 12px;
 }
 
+.project-address { display: grid; gap: var(--s1); justify-items: start; }
+.project-address small { color: var(--muted); font-size: 12px; }
+.project-address p { margin: 0; overflow-wrap: anywhere; }
+.project-address .btn { min-height: 36px; padding: 6px 12px; font-size: 13px; }
+.readonly-banner-source { overflow-wrap: anywhere; }
+
 /* help entry + dialog */
 .help-button { min-height: 36px; padding: 6px 12px; font-size: 13px; }
 .help-content { font-size: 14px; line-height: 1.7; }

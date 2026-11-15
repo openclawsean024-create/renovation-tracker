@@ -164,6 +164,10 @@ export function Dashboard({
   const [shareIncludeAddress, setShareIncludeAddress] = useState(false)
   const [shareIncludeContacts, setShareIncludeContacts] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
+  const [addressOpen, setAddressOpen] = useState(false)
+  const [addressDraft, setAddressDraft] = useState('')
+  const [addressError, setAddressError] = useState<string | null>(null)
+  const addressTitleId = useId()
   const [activeSection, setActiveSection] = useState<string>('overview')
   const mainRef = useRef<HTMLElement | null>(null)
   const shareDialogTitleId = useId()
@@ -608,6 +612,24 @@ export function Dashboard({
                 </p>
               </div>
               <div className="intro-bottom">
+                <div className="project-address">
+                  <small>工程地址</small>
+                  <p data-testid="project-address">
+                    {project.address ? project.address : '未填寫（分享連結預設不含地址）'}
+                  </p>
+                  <button
+                    type="button"
+                    className="btn edit-control"
+                    onClick={() => {
+                      setAddressDraft(project.address ?? '')
+                      setAddressError(null)
+                      setAddressOpen(true)
+                    }}
+                    data-testid="edit-address"
+                  >
+                    {project.address ? '編輯工程地址' : '填寫工程地址'}
+                  </button>
+                </div>
                 <div className="project-dates">
                   <small>預計施工期間</small>
                   <p className="numeric">
@@ -1027,6 +1049,51 @@ export function Dashboard({
       </Modal>
 
       <HelpDialog open={helpOpen} onClose={() => setHelpOpen(false)} />
+
+      <Modal
+        open={addressOpen}
+        title="工程地址"
+        onClose={() => setAddressOpen(false)}
+        labelledById={addressTitleId}
+      >
+        <form
+          noValidate
+          onSubmit={(e) => {
+            e.preventDefault()
+            const trimmed = addressDraft.trim()
+            updateProject({ address: trimmed.length > 0 ? trimmed : undefined })
+              .then(() => setAddressOpen(false))
+              .catch((err: unknown) =>
+                setAddressError(err instanceof Error ? err.message : '儲存失敗'),
+              )
+          }}
+        >
+          <div className="field">
+            <label htmlFor={`${addressTitleId}-input`}>工程地址（選填）</label>
+            <input
+              id={`${addressTitleId}-input`}
+              type="text"
+              value={addressDraft}
+              onChange={(e) => setAddressDraft(e.target.value)}
+              data-testid="address-input"
+            />
+          </div>
+          <p className="field-hint">
+            地址只存在本機。產生分享連結時預設不放入，需要時在分享對話框勾選「包含工程地址」。清空即刪除地址。
+          </p>
+          {addressError && (
+            <div className="form-feedback" role="alert">{addressError}</div>
+          )}
+          <div className="form-actions">
+            <button type="button" className="btn" onClick={() => setAddressOpen(false)}>
+              取消
+            </button>
+            <button type="submit" className="btn primary" data-testid="address-submit">
+              儲存
+            </button>
+          </div>
+        </form>
+      </Modal>
     </>
   )
 }

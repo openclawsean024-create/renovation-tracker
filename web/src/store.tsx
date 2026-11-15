@@ -583,6 +583,9 @@ export function DashboardProvider({ children, clock, idFactory }: DashboardProvi
         ...patch,
         updatedAt: nowISO(clock),
       }
+      // Clearing the address removes the field entirely, so nothing about it
+      // is stored or shared (AC-005).
+      if ('address' in patch && !patch.address) delete next.address
       await putProject(next)
       dispatch({ type: 'project/upsert', project: next })
       return next

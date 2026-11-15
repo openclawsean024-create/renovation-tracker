@@ -101,9 +101,9 @@
 | Command（於 `web/`） | Exit | 結果 |
 |---|---:|---|
 | `npm ci` | 0 | 乾淨安裝完成 |
-| `npm run lint` | 0 | `eslint .`：0 errors、4 warnings（`react-refresh/only-export-components`） |
+| `npm run lint` | 0 | `eslint .`：0 errors、5 warnings（`react-refresh/only-export-components`） |
 | `npm run typecheck` | 0 | `tsc --noEmit` 通過 |
-| `npm test` | 0 | 39 檔／620 tests 全數通過（M1 前為 25 檔／438 tests，其中 3 失敗） |
+| `npm test` | 0 | 40 檔／625 tests 全數通過（M1 前為 25 檔／438 tests，其中 3 失敗） |
 | `npm run build` | 0 | `tsc --noEmit && vite build` 完成（JS 302.80 kB／gzip 86.53 kB、CSS 45.15 kB） |
 | GitHub Actions `ci.yml`（PR `openclawsean024-create/renovation-tracker#2`） | — | run `43756028967`（commit `9604dc5`，`pull_request` 事件，Node 22）：`lint`、`test`、`build` 皆 success，`deploy` skipped（停用）；`gh pr checks 2` 顯示三項 pass。M1 前最近 3 次 run 皆為 workflow 解析失敗。之後的 commit 以 PR 頁面的 checks 為準 |
 
@@ -146,8 +146,8 @@ decoration-tracker（只讀，未修改）：本 session 僅以 `gh api`／`gh r
 
 驗收者回報的缺陷與疑點（未修正，列給 Sean 覆審決定）：
 
-1. **中**：唯讀頁橫幅以純文字印出整條分享連結（約 4,750 字元），手機上要捲過約三個螢幕才看到內容。此橫幅為 M1 前既有行為（既有測試 `readonly-source-url` 鎖定），但 M1 加入更多區塊後連結變長，影響變明顯。
-2. **中**：「包含工程地址」在實際 App 中無法勾選：seed 工程沒有地址，M1 也沒有輸入地址的 UI，因此只有單元測試覆蓋。是否要在 M1 加入地址欄位，待 Sean 決定。
+1. **中（已修正）**：唯讀頁橫幅以純文字印出整條分享連結（約 4,750 字元），手機上要捲過約三個螢幕才看到內容。此橫幅為 M1 前既有行為（既有測試 `readonly-source-url` 鎖定），但 M1 加入更多區塊後連結變長，影響變明顯。修正：橫幅只顯示頁面網址加「（分享快照）」；375px 下橫幅高度由 2,488px 降為 117px（`Dashboard.address.test.tsx`）。
+2. **中（已修正）**：「包含工程地址」在實際 App 中無法勾選：seed 工程沒有地址，M1 也沒有輸入地址的 UI，因此只有單元測試覆蓋。修正：工程總覽新增「填寫／編輯工程地址」（只存本機，清空即刪除欄位）；瀏覽器實測填寫後分享對話框的地址選項可勾、預設未勾，預設連結與唯讀頁都不含地址（`Dashboard.address.test.tsx`）。新增的地址區塊請一併於 UI 覆審確認。
 3. **低**：分享快照的「快照產生時間」與分享對話框「建立日期」使用 UTC 且未標時區，台灣時間 00:00–08:00 產生的連結會差一天（既有行為）。
 4. **低**：竄改的連結錯誤頁會露出瀏覽器原始英文例外訊息（既有行為）。
 5. **低**：照片沒填說明時，照片進度回報以檔名代替說明，檔名可能含不想顯示的資訊。
@@ -177,5 +177,5 @@ decoration-tracker（只讀，未修改）：本 session 僅以 `gh api`／`gh r
 ## 下一步
 
 1. Sean 覆審 M1 PR：範圍、UI（`PRD/UI-SPEC.md` v1.4）、schema v6 與上方「需 Sean 人審」項目。
-2. ~~由獨立驗收者執行 GOAL Exit gate~~：已完成（2026-11-16），結果與缺陷清單見「M1 Exit gate — 獨立驗收」；其中缺陷 1、2 請在覆審時決定是否於合併前處理。
+2. ~~由獨立驗收者執行 GOAL Exit gate~~：已完成（2026-11-16）；驗收者回報的兩個中度缺陷已修正，低度項目留待覆審決定。
 3. 確認待確認事項（產品名稱、部署目標）；合併與 release 後同步 Notion。M2 與任何外部整合在 Exit gate 通過前不開始。
