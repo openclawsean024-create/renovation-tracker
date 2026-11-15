@@ -784,7 +784,7 @@ function validateSnapshotShape(raw: Record<string, unknown>): ShareDecodeResult 
   // FR-006 warranty items are optional (older snapshots pre-date the feature).
   // We validate the array shape when present, but never reject the snapshot
   // for missing entries — defaults to `[]`.
-  let warranties: ShareWarranty[] = []
+  const warranties: ShareWarranty[] = []
   if (raw.warranties !== undefined) {
     if (!Array.isArray(raw.warranties)) {
       return { ok: false, error: { code: 'shape', message: '保固紀錄格式不正確' } }

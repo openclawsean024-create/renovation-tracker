@@ -153,7 +153,7 @@ describe('AC-FR006-01 — empty state, CRUD, section header', () => {
     fillAndSubmit(dialog, {
       itemName: '磁磚保固',
       provider: '里歐建材',
-      contact: '0912345678',
+      contact: '0900-000-000',
       startsOn: '2026-01-01',
       endsOn: '2026-12-31',
       note: '客廳',
@@ -163,14 +163,14 @@ describe('AC-FR006-01 — empty state, CRUD, section header', () => {
     )
     expect(screen.getByText('磁磚保固')).toBeInTheDocument()
     expect(screen.getByText(/里歐建材/)).toBeInTheDocument()
-    expect(screen.getByText(/0912345678/)).toBeInTheDocument()
+    expect(screen.getByText(/0900-000-000/)).toBeInTheDocument()
 
     const stored = await getAllWarranties()
     expect(stored).toHaveLength(1)
     expect(stored[0]!.itemName).toBe('磁磚保固')
     expect(stored[0]!.provider).toBe('里歐建材')
     expect(stored[0]!.projectId).toBe(seedProject.id)
-    expect(stored[0]!.contact).toBe('0912345678')
+    expect(stored[0]!.contact).toBe('0900-000-000')
     expect(stored[0]!.note).toBe('客廳')
   })
 

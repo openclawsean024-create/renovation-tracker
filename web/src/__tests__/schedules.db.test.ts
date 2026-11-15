@@ -45,7 +45,7 @@ describe('ScheduleItem IndexedDB — AC-FR005-02', () => {
   })
 
   it('round-trips a schedule across simulated reloads', async () => {
-    const s = mk({ id: 's1', reminderOn: '2026-09-19', phone: '0912345678', note: '帶電錶' })
+    const s = mk({ id: 's1', reminderOn: '2026-09-19', phone: '0900-000-000', note: '帶電錶' })
     await putSchedule(s)
     await closeDb()
     resetDbCache()
@@ -57,7 +57,7 @@ describe('ScheduleItem IndexedDB — AC-FR005-02', () => {
     expect(back.startOn).toBe('2026-09-20')
     expect(back.endOn).toBe('2026-09-22')
     expect(back.reminderOn).toBe('2026-09-19')
-    expect(back.phone).toBe('0912345678')
+    expect(back.phone).toBe('0900-000-000')
     expect(back.note).toBe('帶電錶')
     expect(back.completed).toBe(false)
   })

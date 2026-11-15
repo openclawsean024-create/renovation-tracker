@@ -124,7 +124,7 @@ function mkWarranty(overrides: Partial<WarrantyRecord> = {}): WarrantyRecord {
     projectId: 'proj-1',
     itemName: '磁磚保固',
     provider: '里歐建材',
-    contact: '0912345678',
+    contact: '0900-000-000',
     startsOn: '2026-01-01',
     endsOn: '2027-01-01',
     note: '客廳',
