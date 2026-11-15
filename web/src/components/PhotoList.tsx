@@ -5,9 +5,10 @@
 // re-sort on every render. Object URLs are created per-row and revoked on
 // unmount / when the photo changes.
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { ConfirmDialog } from './ConfirmDialog'
 import { PhotoPreview } from './PhotoPreview'
+import { usePhotoUrl } from './usePhotoUrl'
 import {
   PHOTO_KIND_LABELS,
   PHOTO_KINDS,
@@ -185,42 +186,4 @@ function PhotoRow({ photo, stageName, onPreview, onDelete }: PhotoRowProps) {
       </div>
     </li>
   )
-}
-
-/**
- * Create / cache an object URL for a blob. Revoked when the blob changes or
- * the row unmounts. SPEC §4.4 requires that creating a thumbnail must NOT
- * mutate the original blob — URL.createObjectURL is a read-only handle, and
- * revokeObjectURL just drops our reference without touching the Blob.
- */
-function usePhotoUrl(blob: Blob): string | null {
-  const [url, setUrl] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
-      // jsdom + fake-indexeddb don't expose URL.createObjectURL for Blobs in
-      // some configurations. Tests can still mount the row; the thumbnail
-      // falls back to the "無縮圖" placeholder while the photo data itself
-      // round-trips through IndexedDB.
-      setUrl(null)
-      return undefined
-    }
-    let revoked = false
-    let next: string | null = null
-    try {
-      next = URL.createObjectURL(blob)
-      setUrl(next)
-    } catch {
-      setUrl(null)
-    }
-    return () => {
-      if (revoked) return
-      revoked = true
-      if (next && typeof URL.revokeObjectURL === 'function') {
-        URL.revokeObjectURL(next)
-      }
-    }
-  }, [blob])
-
-  return url
 }
