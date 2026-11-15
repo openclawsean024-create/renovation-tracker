@@ -6,6 +6,16 @@
 - 規格：`PRD/SPEC.md` v5.0；目前里程碑：`GOAL.md`（M1）
 - 技術棧：Vite 5 + React 18 + TypeScript strict + IndexedDB（local-first，無後端）
 
+## M1 進度紀錄（分支 `feat/m1`）
+
+每完成一條 AC 就在此補一列。指令皆在 `web/` 執行（Node v26.13.1）；「結果」為實際輸出摘要。
+
+| AC | 狀態 | Commit | 驗證指令 | 結果 |
+|---|---|---|---|---|
+| AC-007 品質閘門與 CI | 本機通過；CI 綠燈待 PR 驗證 | `dc7f231` | `npm run lint && npm run typecheck && npm test && npm run build`；`git diff main -- web/src/__tests__/Dashboard.schedule.test.tsx \| grep -c '^-.*expect('` | lint 0 errors（僅 warnings）、typecheck exit 0、test 全數通過、build exit 0；被刪除的 `expect(` 行數 = 0。測試：`qualityGate.test.ts`、`Dashboard.schedule.test.tsx`（AC-007 標註） |
+| AC-001 預算變更單 | 通過 | `8591cb9` | `npm test -- changeOrders` | exit 0；3 檔／41 tests 通過（`changeOrders.test.ts`、`changeOrders.db.test.ts`、`Dashboard.changeOrders.test.tsx`） |
+| AC-002 合約金額與收款概要 | 通過 | `8591cb9` | `npm test -- contract` | exit 0；2 檔／29 tests 通過（`contract.test.ts`、`Dashboard.contract.test.tsx`）；另 `acceptance.db.test.ts` 含 AC-002 合約紀錄 round-trip |
+
 ## Notion 對應
 
 | Notion「可產品化商品」欄位 | 值 | repo 對應 |
