@@ -2,7 +2,7 @@
 
 - Repo：`openclawsean024-create/renovation-tracker`（預設分支 `main`，public）
 - 基準 commit：`main` @ `9ceea39`；M1 開發分支 `feat/m1`（自 `chore/prd-rebuild` @ `344da4d` 開出）
-- 狀態：🟡 **M1（AC-001～AC-009）已在 `feat/m1` 實作，本機品質閘門、PR CI 與獨立驗收皆通過；Exit gate 只剩 Sean 覆審 PR（`openclawsean024-create/renovation-tracker#2`）**（2026-11-16）
+- 狀態：🟢 **M1（AC-001～AC-009）完成，Exit gate 全數通過**：本機品質閘門、PR CI、獨立驗收，以及 Sean 覆審（合併清單、範圍與 UI）（2026-11-16）。PR `openclawsean024-create/renovation-tracker#2` 尚未合併；合併、部署、Notion 同步與 decoration-tracker 封存由 Sean 決定。
 - 尚未做：merge、push 到 `main`、production deploy、Notion 同步、封存 decoration-tracker — 皆不在 agent session 內執行。
 - 規格：`PRD/SPEC.md` v5.1；目前里程碑：`GOAL.md`（M1）
 - 技術棧：Vite 5 + React 18 + TypeScript strict + IndexedDB（local-first，無後端）
@@ -131,7 +131,7 @@ decoration-tracker（只讀，未修改）：本 session 僅以 `gh api`／`gh r
 | 項目 | 狀態 | 紀錄 |
 |---|---|---|
 | 合併清單（decoration-tracker → 本 repo） | 通過 | 2026-11-16 Sean 在 Claude Code session 中回覆：「合併清單覆審通過」 |
-| 範圍與 UI（含 `PRD/UI-SPEC.md` v1.4、新增的工程地址欄位、schema v6、停用的 deploy job） | 待確認 | 上述回覆只提到合併清單；UI 是否通過尚未明確表示 |
+| 範圍與 UI（含 `PRD/UI-SPEC.md` v1.4、新增的工程地址欄位、schema v6、停用的 deploy job） | 通過 | 2026-11-16 Sean 在 Claude Code session 中回覆：「UI also approved」 |
 
 ## M1 Exit gate — 獨立驗收（2026-11-16）
 
@@ -183,6 +183,6 @@ decoration-tracker（只讀，未修改）：本 session 僅以 `gh api`／`gh r
 
 ## 下一步
 
-1. Sean 覆審 M1 PR：範圍、UI（`PRD/UI-SPEC.md` v1.4）、schema v6 與上方「需 Sean 人審」項目。
+1. ~~Sean 覆審 M1 PR~~：已通過（2026-11-16，合併清單、範圍與 UI）。合併 PR #2 由 Sean 執行。
 2. ~~由獨立驗收者執行 GOAL Exit gate~~：已完成（2026-11-16）；驗收者回報的兩個中度缺陷已修正，低度項目留待覆審決定。
 3. 確認待確認事項（產品名稱、部署目標）；合併與 release 後同步 Notion。M2 與任何外部整合在 Exit gate 通過前不開始。
