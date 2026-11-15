@@ -1,5 +1,5 @@
 // FR-007 change-order (追加減) domain helpers. See PRD/SPEC.md §12.1 and
-// GOAL AC-001. Rewritten from decoration-tracker's localStorage prototype
+// GOAL AC-001. Rewritten from decoration-tracker's browser-storage prototype
 // (`addBudgetChange` / `approveBudget` / `rejectBudget`) on top of this repo's
 // validation conventions. Two deliberate differences from that prototype:
 //   - only `approved` orders count towards the adjusted total (the prototype

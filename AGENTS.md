@@ -23,22 +23,25 @@ renovation-tracker/
 ├── AGENTS.md / GOAL.md / SOP.md / STATUS.md / README.md
 ├── PRD/                     # SPEC、UI-SPEC、CHANGELOG、歷次 MiniMax brief 與驗收報告
 ├── prototype/               # UI 原型 HTML（review 用）
-├── .github/workflows/ci.yml # CI（目前 workflow 檔解析失敗，見 STATUS.md）
+├── .github/workflows/ci.yml # CI：lint／typecheck、test、build（deploy job 停用，部署目標待確認）
+├── docs/USER-GUIDE.md       # 業者端與屋主端使用說明
 └── web/                     # 唯一的應用程式（npm 專案根目錄）
     ├── index.html
     ├── renovation-tracker.html   # 自包含互動預覽頁（非 React 入口）
+    ├── eslint.config.js          # ESLint v9 flat config（`npm run lint`）
     ├── vite.config.ts            # 含 vitest 設定（jsdom、src/test/setup.ts）
     └── src/
         ├── main.tsx / App.tsx    # App → AppShell（決定編輯模式或 #share= 唯讀模式）
         ├── components/           # Dashboard、各 Section／Form／Row、GanttChart、ReadOnlyView、Modal 等
         ├── store.tsx             # DashboardProvider：React context + IndexedDB 寫入
-        ├── db.ts                 # IndexedDB（DB `renovation-tracker` schema v5）
+        ├── db.ts                 # IndexedDB（DB `renovation-tracker` schema v6）
         ├── types.ts              # Domain types 與 enum 常數
         ├── seed.ts               # 首次開啟的示範工程（固定參考日 2026-01-05）
         ├── validation.ts / budget.ts / photos.ts / schedule.ts / warranty.ts / status.ts
+        ├── changeOrders.ts / contract.ts / acceptance.ts / photoReport.ts   # M1（FR-007～FR-010）
         ├── dates.ts / gantt.ts   # 本地日期與甘特計算
-        ├── share.ts              # 唯讀分享 snapshot encode/decode（version 1）
-        └── __tests__/            # Vitest + Testing Library 測試（25 檔）
+        ├── share.ts              # 唯讀分享 snapshot encode/decode（version 2，相容 version 1）
+        └── __tests__/            # Vitest + Testing Library 測試（39 檔）
 ```
 
 ## 3. 技術棧

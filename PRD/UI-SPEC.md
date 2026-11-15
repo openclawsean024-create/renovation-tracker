@@ -1,8 +1,8 @@
 # Renovation Tracker UI Specification
 
-**Version:** 1.3
-**Status:** Mobile viewport regression correction pending
-**Scope:** Visual and interaction polish for the existing FR-001–FR-006 MVP
+**Version:** 1.4
+**Status:** Mobile viewport regression correction pending; M1 sections (FR-007–FR-011) added in v1.4 and awaiting Sean's UI review (GOAL.md Exit gate)
+**Scope:** Visual and interaction polish for the existing FR-001–FR-006 MVP, plus the M1 record sections
 
 ## 1. Purpose
 
@@ -120,6 +120,22 @@ Every major area (stages, photos, budget, schedule, warranties, Gantt) follows o
 - **Schedule:** overdue, due-soon, completed, and normal states differ by label/icon/weight as well as color. Dates remain scannable.
 - **Warranties:** active/expired states are explicit; empty state explains the purpose of warranty records.
 - **Gantt:** timeline remains legible with a clear label column where possible. On narrow screens, horizontal scroll is allowed only inside the Gantt surface.
+
+### M1 sections (v1.4 — FR-007 ~ FR-011)
+
+M1 adds four record sections and one help entry. They reuse the existing tokens, the section-card pattern above and the `status-pill` / `budget-summary` primitives; no new colour, font or layout system is introduced. Shared primitives live in `index.css` under "M1 record sections" (`.record-section-header`, `.record-list`, `.record-row`, `.record-meta`, `.record-actions`, `.record-notice`, `.record-alert`).
+
+Placement (editable dashboard, top to bottom): … Budget + Photos grid → **Photo progress report** → **Contract & receipts** → **Change orders** → **Acceptance checklist** → Schedule + Warranties. The header navigation keeps its six links; the new sections are reached by scrolling within the same page. A compact secondary **使用說明** button sits in the header note row.
+
+- **Photo progress report (`#photo-report`, FR-010):** one row per stage in stage order — 72px thumbnail (56px on mobile) of the latest photo, stage name, count label (`N 張` or `尚無照片`), latest shooting date and latest caption. A trailing `未分類` row appears only when unassigned photos exist. Read-only; no actions.
+- **Contract & receipts (`#contract`, FR-008):** `budget-summary` grid with five cells — 原合約、已核准變更合計、調整後總額、已收、待收. A negative 待收 is shown in the danger tone **and** spelled out in a `record-alert` line starting with `溢收` (never colour only). One primary action: 編輯合約金額 (modal with two numeric fields and inline field errors).
+- **Change orders (`#change-orders`, FR-007):** header with per-status counts and a primary 新增變更單 action; a neutral `record-notice` stating 「本機紀錄，非屋主線上簽核」 is always visible. Each row: title, status pill (`待決定 ○` / `已核准 ●` / `已拒絕 ✕` — symbol + label), amount prefixed with 追加／追減 and an explicit sign, then stage / material / decision date / note metadata. Pending rows expose 核准、拒絕、編輯; every row exposes a quiet destructive 刪除 that opens the shared confirm dialog. Decided rows have no approve / reject / edit controls.
+- **Acceptance checklist (`#acceptance`, FR-009):** one block per stage with the stage name, a `驗收 x/y` count and a secondary 新增驗收項目 action. Items are rows with a 44px checkbox target, name, `已通過 ●` / `未通過 ○` pill, check date and note, plus 編輯／刪除. A completed stage with un-passed items shows a `record-alert` text warning in the block and next to `驗收 x/y` on the stage row; the warning never disables anything.
+- **Share dialog (FR-004 / AC-005):** below the facts list, a fieldset 「個人資料（預設不分享）」 with two unticked checkboxes (包含工程地址、包含聯絡方式) and a `record-alert` line stating the link is unencrypted and cannot be revoked. Toggling a box regenerates the link and resets the copy button; it never auto-copies.
+- **Read-only view:** mirrors the sections above without any control — photo report (count + latest date per stage, plus the note that originals stay on the contractor's device), contract summary + change-order list with the local-record notice, acceptance progress per stage, and — only when the sharer opted in — the address line and a worker-contact list. A privacy note under the banner repeats that the link is unencrypted and cannot be revoked.
+- **Help dialog (FR-011):** wide modal with three short groups (業者端、屋主端、請注意) and one 關閉 action.
+
+Mobile (<= 767px): section headers stack with a full-width primary action; `record-row` collapses to one column with actions left-aligned under the content; `budget-summary` cells wrap via the existing auto-fit grid; long titles and notes wrap (`overflow-wrap: anywhere`) so no M1 section can cause page-level horizontal scroll.
 
 ## 5. Interaction and component states
 

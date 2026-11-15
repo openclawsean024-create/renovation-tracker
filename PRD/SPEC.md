@@ -1,6 +1,6 @@
 # 裝修進度管理平台 — 產品規格（PRD）
 
-> 版本：v5.0（PRD 重建）· 日期：2026-11-16
+> 版本：v5.1（M1 實作後同步功能狀態；需求內容與 v5.0 相同）· 日期：2026-11-16
 > 主 repo：`openclawsean024-create/renovation-tracker`（預設分支 `main`）
 > 併入來源：`openclawsean024-create/decoration-tracker`（只讀，見 §13 合併清單）
 > 商業依據：Notion 資料庫「可產品化商品」（產品名稱「裝修進度管理平台」、P2、開發順位第 7）。
@@ -59,14 +59,14 @@
 | FR-001 | 工程進度看板（階段 CRUD、狀態、摘要、甘特圖） | P0 | 已實作 | renovation-tracker | 既有 | §6 |
 | FR-002 | 照片記錄（上傳、分類、階段關聯、預覽、刪除） | P0 | 已實作 | renovation-tracker（decoration-tracker 僅有 mock SVG 版） | 既有 | §7 |
 | FR-003 | 預算追蹤（預算項目、實際金額、付款狀態、超支） | P0 | 已實作 | renovation-tracker | 既有 | §8 |
-| FR-004 | 屋主端唯讀分享連結（URL hash snapshot） | P0 | 部分 | renovation-tracker | M1 強化／M2 伺服器端 | §9；無撤銷、分享內容預設含地址與聯絡方式、未含變更單與驗收 |
-| FR-005 | 師傅排程與提醒 | P1 | 已實作（3 個測試有時間相依失敗） | renovation-tracker | M1 修測試 | §10 |
+| FR-004 | 屋主端唯讀分享連結（URL hash snapshot） | P0 | 已實作（M1 強化；撤銷／到期屬 FR-015） | renovation-tracker | M1 強化／M2 伺服器端 | §10；M1 已改為預設不含地址與聯絡方式，並納入變更單、收款、驗收與照片回報摘要；仍無撤銷 |
+| FR-005 | 師傅排程與提醒 | P1 | 已實作（時間相依測試已於 M1 以固定時鐘修正） | renovation-tracker | M1 修測試 | §11 |
 | FR-006 | 保固紀錄 | P1 | 已實作 | renovation-tracker | 既有 | §11 |
-| FR-007 | 預算變更單（追加減）與屋主核准／拒絕 | P0 | 部分 | decoration-tracker（雛形） | M1 | §12.1 |
-| FR-008 | 合約金額與收款概要（總額／已收／待收） | P1 | 部分 | decoration-tracker（雛形，唯讀 seed） | M1 | §12.2 |
-| FR-009 | 階段驗收清單 | P0 | 部分 | decoration-tracker（雛形，4 個固定項目） | M1 | §12.3 |
-| FR-010 | 照片進度回報（依階段彙整照片與最新進度） | P0 | 未實作（FR-002 已有資料基礎） | — | M1 | §12.4 |
-| FR-011 | README 與使用說明 | P0 | 未實作（README 僅 3 行） | — | M1 | §12.5 |
+| FR-007 | 預算變更單（追加減）與屋主核准／拒絕 | P0 | 已實作（M1；核准為本機紀錄，屋主線上核准屬 FR-015） | renovation-tracker（自 decoration-tracker 雛形重寫） | M1 | §12.1 |
+| FR-008 | 合約金額與收款概要（總額／已收／待收） | P1 | 已實作（M1） | renovation-tracker（自 decoration-tracker 雛形重寫） | M1 | §12.2 |
+| FR-009 | 階段驗收清單 | P0 | 已實作（M1） | renovation-tracker（自 decoration-tracker 雛形重寫） | M1 | §12.3 |
+| FR-010 | 照片進度回報（依階段彙整照片與最新進度） | P0 | 已實作（M1；未預留 `PhotoStorageAdapter`，M2 再評估） | renovation-tracker | M1 | §12.4 |
+| FR-011 | README 與使用說明 | P0 | 已實作（M1） | renovation-tracker | M1 | §12.5 |
 | FR-012 | 多案件管理（案件列表、建立、封存） | P1 | 部分 | decoration-tracker（列表 UI 只讀 seed，無建立） | M2 | 主 repo 目前為單一示範工程 |
 | FR-013 | 帳號與角色權限（業者／工班／屋主） | P1 | 未實作 | — | M2 設計、M3 上線 | 需 risk approval |
 | FR-014 | 雲端同步與照片雲端儲存 | P1 | 未實作 | — | M2 mock adapter、M3 真實 | 需 risk approval |
@@ -78,11 +78,11 @@
 ## 6. 技術與執行邊界（主 repo 現況）
 
 - 前端：Vite 5 + React 18 + TypeScript strict（`web/`）。`react-router-dom` 已列為依賴，但目前畫面以單頁 + 區段錨點（`#overview`、`#timeline`、`#photos`、`#budget`、`#schedule`、`#warranties`）與 `#share=` hash 運作。
-- 儲存：IndexedDB（DB 名稱 `renovation-tracker`，schema v5：projects、stages、photos、budgets、schedules、warranties）。照片以 Blob 存於 IndexedDB。
+- 儲存：IndexedDB（DB 名稱 `renovation-tracker`，schema v6：projects、stages、photos、budgets、schedules、warranties，M1 新增 changeOrders、contracts、acceptanceItems；v5 → v6 僅新增 store）。照片以 Blob 存於 IndexedDB。
 - 後端：無。M1 不新增 API、資料庫、登入或第三方服務。
-- 分享：URL hash 的 versioned snapshot（`SHARE_SNAPSHOT_VERSION = 1`），不含 Blob 與 IndexedDB key；不具伺服器端撤銷、權限或即時同步能力。
+- 分享：URL hash 的 versioned snapshot（`SHARE_SNAPSHOT_VERSION = 2`，仍可開啟 version 1 連結），不含 Blob 與 IndexedDB key；不具伺服器端撤銷、權限或即時同步能力。
 - 提醒：頁面內提醒為保底，瀏覽器 Notification 為 best-effort。
-- 測試：Vitest + Testing Library + jsdom + fake-indexeddb；`src/__tests__/` 共 25 個測試檔。
+- 測試：Vitest + Testing Library + jsdom + fake-indexeddb；`src/__tests__/` 於 M1 後共 39 個測試檔（v5.0 盤點時為 25 個）。
 - 瀏覽器：最新兩版 Chrome、Safari、Edge；375px 以上不得出現頁面級水平捲軸，甘特圖可在自身容器內水平捲動。
 
 ### 6.1 Domain model（既有，保留）
@@ -168,6 +168,8 @@ interface WarrantyRecord {
 
 ### 10.2 缺口（M1 補）
 
+> M1 實作狀態（2026-11-16）：前兩項已補（GOAL AC-005）；第三項仍屬 FR-015，未實作也未宣稱具備。
+
 - snapshot 若工程有 `address` 會一併放入 URL；保固 `contact` 也會放入 URL。URL hash 未加密，任何拿到連結的人都能讀取 → M1 改為**預設不含地址與聯絡方式**，需使用者明確勾選才放入。
 - snapshot 未含 FR-007 變更單、FR-008 收款概要、FR-009 驗收清單、FR-010 照片進度回報摘要。
 - 無撤銷、到期與屋主線上核准能力 → 屬 FR-015（M3），M1 不得宣稱具備。
@@ -175,7 +177,7 @@ interface WarrantyRecord {
 ## 11. FR-005 師傅排程與提醒、FR-006 保固紀錄（已實作）
 
 - FR-005：工班名稱、電話、起訖日、關聯階段、提醒日、備註、完成狀態；依開始日排序並顯示未開始／今日／進行中／已完成／逾期；頁面內提醒列出到期或 7 天內未完成項目；Notification API 為 best-effort。對應測試：`schedule.test.ts`、`schedules.db.test.ts`、`Dashboard.schedule.test.tsx`。
-  - **已知問題**：`Dashboard.schedule.test.tsx` 有 3 個測試寫死 `2026-09-25`～`2026-09-30` 的提醒日期並依賴系統時鐘，2026-11-16 執行時失敗。M1 須以 fake timers 或注入 today 修正，不得刪除或放寬斷言。
+  - **已知問題（M1 已修正，AC-007）**：`Dashboard.schedule.test.tsx` 有 3 個測試寫死 `2026-09-25`～`2026-09-30` 的提醒日期並依賴系統時鐘，2026-11-16 執行時失敗。M1 須以 fake timers 或注入 today 修正，不得刪除或放寬斷言。
 - FR-006：項目、提供者、聯絡方式、保固起訖、備註；依結束日排序，顯示尚未開始／有效中／已過期；30 天內到期警示。對應測試：`warranty.test.ts`、`warranties.db.test.ts`、`Dashboard.warranty.test.tsx`。
 
 ## 12. M1 新增功能規格
@@ -366,5 +368,6 @@ decoration-tracker 實際程式（2026-11-16 讀取 `main` @ `26cff11`）：Vite
 
 ## 21. 變更紀錄
 
+- v5.1（2026-11-16）：M1 實作後同步 §5 功能狀態、§6 技術現況（schema v6、分享 version 2、測試檔數）、§10.2 與 §11 的缺口註記。需求、AC 與里程碑內容未變更。
 - v5.0（2026-11-16）：PRD 重建。補問題、客群、獲利模式、競品、FR 總表（含狀態與所在 repo）、個資與法規、M1～M3、成功指標與 decoration-tracker 合併清單；保留 v4.0 FR-001～FR-006 規格摘要。
 - v4.0（2026-09-20）：FR-002～FR-006 可執行規格（見 `PRD/CHANGELOG.md`）。

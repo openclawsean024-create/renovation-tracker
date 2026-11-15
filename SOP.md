@@ -2,10 +2,11 @@
 
 ## 規格對齊狀態（2026-11-16）
 
-- ✅ `PRD/SPEC.md` v5.0 已重建（含 FR 總表、個資處理、M1～M3、合併清單）。
+- ✅ `PRD/SPEC.md` v5.1（M1 實作後同步功能狀態；含 FR 總表、個資處理、M1～M3、合併清單）。
 - ✅ `GOAL.md` 只定義 M1（AC-001～AC-009）。
-- ⚠️ 本次為文件重建，尚未開始 M1 開發。
-- ⚠️ `.github/workflows/ci.yml` 目前無法解析（最近 3 次 run 皆 0 秒失敗），且在 repo 根目錄執行 npm、呼叫不存在的 `lint` script；M1 AC-007 修正。
+- ✅ M1 已於分支 `feat/m1` 實作，各 AC 的 commit 與驗證結果見 `STATUS.md`「M1 進度紀錄」。
+- ✅ `.github/workflows/ci.yml` 已於 AC-007 重寫：可解析、在 `web/` 執行、lockfile 為 `web/package-lock.json`，lint／typecheck／test／build 任一失敗即失敗。deploy job 保留但停用（部署目標待確認）。
+- ⚠️ M1 Exit gate（Sean 覆審範圍與 UI、獨立驗收者乾淨安裝重跑與瀏覽器 smoke）尚未執行。
 
 ## 驗證 SOP
 
@@ -14,6 +15,7 @@
 ```bash
 cd web
 npm ci
+npm run lint
 npm run typecheck
 npm test
 npm run build
