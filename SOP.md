@@ -25,12 +25,12 @@ npm run build
 |---|---|---|---|
 | 安裝 | `npm ci` | 可用（有 `package-lock.json`） | exit 0 |
 | Typecheck | `npm run typecheck`（`tsc --noEmit`） | 可用 | exit 0 |
-| Unit／元件測試 | `npm test`（`vitest run`） | 可用 | 25 檔／438 tests：435 通過、3 失敗（`Dashboard.schedule.test.tsx` 時間相依）→ exit 非 0 |
+| Unit／元件測試 | `npm test`（`vitest run`） | 可用 | `feat/m1`：39 檔／619 tests 全數通過 → exit 0（M1 前 `main`：25 檔／438 tests，3 失敗） |
 | 單一測試檔 | `npm test -- <檔名關鍵字>`，例如 `npm test -- share` | 可用 | — |
 | Build | `npm run build`（`tsc --noEmit && vite build`） | 可用 | exit 0 |
 | 本機開發 | `npm run dev` | 可用 | 未於本次執行 |
 | 預覽 build | `npm run preview` | 可用 | 未於本次執行 |
-| Lint | `npm run lint` | **尚未配置**（script 不存在；M1 AC-007 新增） | `npm error Missing script: "lint"` |
+| Lint | `npm run lint`（`eslint .`，`web/eslint.config.js`） | 可用（M1 AC-007 新增） | exit 0（0 errors、4 warnings） |
 | Format | — | **尚未配置** | — |
 | E2E（瀏覽器） | — | **尚未配置**（目前以人工瀏覽器 smoke 補足） | — |
 | Integration | — | **尚未配置** | — |
@@ -38,7 +38,8 @@ npm run build
 注意：
 
 - `npm test -- --run` 也可用（`vitest run --run`，舊文件寫法），與 `npm test` 等價。
-- 3 個失敗測試寫死 `2026-09-25`～`2026-09-30` 的提醒日期並依賴系統時鐘，屬已知問題，不是本次文件變更造成；不得以刪除或放寬斷言處理。
+- `Dashboard.schedule.test.tsx` 原本有 3 個測試寫死 `2026-09-25`～`2026-09-30` 並依賴系統時鐘；M1（AC-007）已用 `vi.useFakeTimers({ toFake: ['Date'] })` + `vi.setSystemTime` 固定為 2026-09-20，未刪除或放寬任何斷言。新增測試如需「今天」，請注入 `clock` 或使用同樣的固定時鐘。
+- 各 AC 的單項指令：`npm test -- changeOrders`、`contract`、`acceptance`、`photoReport`、`share`、`help`、`fakeData`、`mergeChecklist`、`qualityGate`。
 - 尚未配置的指令不得在回報中寫成「通過」。
 
 ## 文件與安全檢查（repo 根目錄）

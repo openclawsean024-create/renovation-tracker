@@ -1,41 +1,66 @@
 # Status — renovation-tracker（裝修進度管理平台）
 
 - Repo：`openclawsean024-create/renovation-tracker`（預設分支 `main`，public）
-- 基準 commit：`main` @ `9ceea39`（2026-09-23 `fix(ui): calibrate mobile viewport`）
-- 狀態：🟡 **PRD／M1 GOAL 文件重建完成，M1 尚未開發**（2026-11-16）
-- 規格：`PRD/SPEC.md` v5.0；目前里程碑：`GOAL.md`（M1）
+- 基準 commit：`main` @ `9ceea39`；M1 開發分支 `feat/m1`（自 `chore/prd-rebuild` @ `344da4d` 開出）
+- 狀態：🟡 **M1（AC-001～AC-009）已在 `feat/m1` 實作並通過本機品質閘門；待 Sean 覆審 PR 與 M1 Exit gate**（2026-11-16）
+- 尚未做：merge、push 到 `main`、production deploy、Notion 同步、封存 decoration-tracker — 皆不在 agent session 內執行。
+- 規格：`PRD/SPEC.md` v5.1；目前里程碑：`GOAL.md`（M1）
 - 技術棧：Vite 5 + React 18 + TypeScript strict + IndexedDB（local-first，無後端）
 
 ## M1 進度紀錄（分支 `feat/m1`）
 
-每完成一條 AC 就在此補一列。指令皆在 `web/` 執行（Node v26.13.1）；「結果」為實際輸出摘要。
+每完成一條 AC 就在此補一列。指令皆在 `web/` 執行（Node v26.13.1），除非註明在 repo 根目錄；「結果」為實際輸出摘要。完整品質閘門的最終結果見下方「Deterministic checks」。
 
 | AC | 狀態 | Commit | 驗證指令 | 結果 |
 |---|---|---|---|---|
-| AC-007 品質閘門與 CI | 本機通過；CI 綠燈待 PR 驗證 | `dc7f231` | `npm run lint && npm run typecheck && npm test && npm run build`；`git diff main -- web/src/__tests__/Dashboard.schedule.test.tsx \| grep -c '^-.*expect('` | lint 0 errors（僅 warnings）、typecheck exit 0、test 全數通過、build exit 0；被刪除的 `expect(` 行數 = 0。測試：`qualityGate.test.ts`、`Dashboard.schedule.test.tsx`（AC-007 標註） |
 | AC-001 預算變更單 | 通過 | `8591cb9` | `npm test -- changeOrders` | exit 0；3 檔／41 tests 通過（`changeOrders.test.ts`、`changeOrders.db.test.ts`、`Dashboard.changeOrders.test.tsx`） |
-| AC-002 合約金額與收款概要 | 通過 | `8591cb9` | `npm test -- contract` | exit 0；2 檔／29 tests 通過（`contract.test.ts`、`Dashboard.contract.test.tsx`）；另 `acceptance.db.test.ts` 含 AC-002 合約紀錄 round-trip |
+| AC-002 合約金額與收款概要 | 通過 | `8591cb9` | `npm test -- contract` | exit 0；2 檔／29 tests 通過（`contract.test.ts`、`Dashboard.contract.test.tsx`）；另 `acceptance.db.test.ts` 含 AC-002 合約紀錄 round-trip 與「與 FR-003 預算分開儲存」 |
+| AC-003 階段驗收清單 | 通過 | 功能 `8591cb9`、互動測試 `d3519e3` | `npm test -- acceptance` | exit 0；3 檔／28 tests 通過（`acceptance.test.ts`、`acceptance.db.test.ts`、`Dashboard.acceptance.test.tsx`） |
+| AC-004 照片進度回報 | 通過 | 功能 `8591cb9`、互動測試 `d3519e3` | `npm test -- photoReport` | exit 0；2 檔／15 tests 通過（`photoReport.test.ts`、`Dashboard.photoReport.test.tsx`）；不接任何雲端儲存（測試確認不發出 `fetch`） |
+| AC-005 屋主端分享連結強化 | 通過 | `bc0d87b` | `npm test -- share` | exit 0；2 檔／104 tests 通過（`share.test.ts`、`Dashboard.share.test.tsx` 的 AC-005 區塊；既有 FR-004 測試未刪改斷言） |
+| AC-006 README 與使用說明 | 通過 | `c47ffb1` | repo 根目錄：GOAL AC-006 的兩條 `grep`；`web/`：`npm test -- help` | README 標題檢查無輸出；`docs/USER-GUIDE.md` 檢查 exit 0；`npm test -- help` exit 0，1 檔／6 tests 通過（`Dashboard.help.test.tsx`） |
+| AC-007 品質閘門與 CI | 本機通過；PR 上 GitHub Actions 結果見下方「Deterministic checks」 | `dc7f231` | `npm run lint && npm run typecheck && npm test && npm run build`；repo 根目錄：`git diff main -- web/src/__tests__/Dashboard.schedule.test.tsx \| grep -c '^-.*expect('` | lint 0 errors、typecheck exit 0、test 全數通過、build exit 0；被刪除的 `expect(` 行數 = 0。測試：`qualityGate.test.ts`、`Dashboard.schedule.test.tsx`（標 AC-007 的測試） |
+| AC-008 假資料與憑證安全 | 通過 | `dc7f231`（電話）、`bc0d87b`（地址）、`c47ffb1`（掃描測試） | repo 根目錄：GOAL AC-008 的 `git grep` 與 `git ls-files \| grep -E '(^\|/)\.env'`；`web/`：`npm test -- fakeData` | 兩條指令皆無輸出；`fakeData.test.ts` 7 tests 通過。測試電話改為 `0900-000-000`、測試地址改為 `測試市示範路 1 號` |
+| AC-009 合併完成對照 | 通過 | 本檔與 `mergeChecklist.test.ts` 所在 commit（`git log --oneline -- web/src/__tests__/mergeChecklist.test.ts`） | repo 根目錄：`grep -c '已搬入' STATUS.md`；`gh repo view openclawsean024-create/decoration-tracker --json isArchived --jq .isArchived`；`web/`：`npm test -- mergeChecklist` | `grep -c` ≥ 4；`isArchived` 輸出 `false`（2026-11-16 查詢，`pushedAt` 仍為 2026-09-06，本 session 未對該 repo 做任何寫入）；`mergeChecklist.test.ts` 7 tests 通過 |
 
 ## Notion 對應
 
 | Notion「可產品化商品」欄位 | 值 | repo 對應 |
 |---|---|---|
-| 產品名稱 | 裝修進度管理平台 | 程式與 README 目前用「裝修進度神器」（名稱統一待 Sean 確認） |
+| 產品名稱 | 裝修進度管理平台 | README 與文件沿用 GOAL.md 的「裝修進度管理平台」；App 畫面仍顯示「裝修進度神器」（名稱統一待 Sean 確認，M1 未更動畫面名稱） |
 | 優先順序 | P2 | — |
 | 開發順位 | 第 7 個 | — |
 | 主 repo | `openclawsean024-create/renovation-tracker` | 本 repo |
-| 要併入的 repo | `openclawsean024-create/decoration-tracker` | 見下方合併清單；尚未搬移，該 repo 未修改 |
+| 要併入的 repo | `openclawsean024-create/decoration-tracker` | 見下方合併清單；M1 四項已搬入（重寫），該 repo 未修改、未封存 |
 | 獲利潛力／模式 | 中／SaaS 訂閱 | `PRD/SPEC.md` §3；計費 M2 mock、M3 真實 |
 | 目標客群 | 室內設計公司、裝修統包商與屋主 | `PRD/SPEC.md` §2 |
-| 現況完成度 | 50 | 程式盤點：FR-001～FR-006 已實作（FR-004 部分），M1 新增 FR-007～FR-011 未實作 |
-| 上市前要補 | README 與使用說明、照片進度回報、屋主端分享連結、計費 | 前三項 → M1 AC-006／AC-004／AC-005；計費 → M2（mock）／M3（真實） |
+| 現況完成度 | 50（Notion 記載，未更新） | 程式盤點：FR-001～FR-011 已實作於 `feat/m1`（未合併）；Notion 數值待 release 時由 Sean 同步 |
+| 上市前要補 | README 與使用說明、照片進度回報、屋主端分享連結、計費 | 前三項已於 M1 完成（AC-006／AC-004／AC-005）；計費未做 → M2（mock）／M3（真實） |
 | 主要風險 | 裝修業數位化程度低，推廣需地推 | `PRD/SPEC.md` §17 |
 
-## 本次增量（文件重建，未改程式）
+## 本次增量（M1，分支 `feat/m1`）
 
-- 改寫 `PRD/SPEC.md`（v5.0）、`AGENTS.md`；新增 `GOAL.md`、`SOP.md`、`STATUS.md`。
-- 盤點主 repo 與 decoration-tracker 實際程式，建立合併清單與 README／程式不一致清單。
-- 未修改任何功能程式碼、設定檔或測試；未 push 到 `main`。
+- 品質閘門（AC-007）：固定假時鐘修正 3 個排程提醒測試、新增 ESLint flat config 與 `lint` script、重寫 CI workflow。
+- 自 decoration-tracker 重寫搬入：預算變更單（FR-007）、合約金額與收款概要（FR-008）、階段驗收清單（FR-009）。
+- 新增照片進度回報（FR-010）、分享 snapshot v2 與個資預設遮蔽（FR-004 缺口）、README／使用說明／App 內「使用說明」（FR-011）。
+- IndexedDB schema v5 → v6：只新增 `changeOrders`、`contracts`、`acceptanceItems` 三個 object store，既有 store 與資料不變（`changeOrders.db.test.ts` 含 v5 → v6 升級測試）。
+- 未做：計費、真實金流、雲端照片儲存、多案件列表、後端、登入、部署。
+
+### 需 Sean 人審（AGENTS.md §4 第 7、8 點）
+
+- **DB schema migration v5 → v6**：依本次任務指示以 IndexedDB 重寫 M1 功能而新增三個 store；屬 additive 變更，但仍列為需人審項目。
+- **UI 變更**：`PRD/UI-SPEC.md` 已更新為 v1.4（M1 sections），未另做 prototype；新區塊的版面與文案請於 PR 覆審時確認。
+- **CI deploy job**：原 workflow 的 GitHub Pages deploy job 保留定義但以 `if: ${{ false }}` 停用，避免修好語法後在合併到 `main` 時自動觸發從未執行過的 production deploy（部署目標待確認）。
+
+### M1 實作上的取捨（供覆審）
+
+- 導覽列維持原本六個連結（`Dashboard.navigation.test.tsx` 鎖定該清單），新區塊以同頁捲動到達；是否加入導覽待 UI 覆審決定。
+- 變更單一旦核准或拒絕就不能再編輯或改狀態（SPEC §12.1「已決定的變更單不可再改金額」）；記錯需刪除重建。
+- 分享 snapshot 只帶變更單的標題、金額、狀態與決定日；材料與備註不放入連結。
+- 勾選「包含聯絡方式」時，連結才會帶出有填電話的工班（名稱＋電話）與保固聯絡方式。
+- 工程地址目前沒有編輯 UI（M1 未新增）；沒有地址時分享對話框的地址選項為停用狀態。
+- 未預留 `PhotoStorageAdapter` 介面（SPEC §12.4 為「預留時」的限制條件，非 M1 AC），留待 M2。
+- seed 仍只建立示範工程與七個階段，未加入示範變更單／驗收項目。
 
 ## FR 對照（已實作／未實作）
 
@@ -44,14 +69,14 @@
 | FR-001 | 工程進度看板 | P0 | 已實作 | renovation-tracker | `Dashboard.tsx`、`GanttChart.tsx`、`validation.ts`；`Dashboard.test.tsx`、`gantt.test.ts` 等 |
 | FR-002 | 照片記錄 | P0 | 已實作 | renovation-tracker | `PhotoSection.tsx`、`photos.ts`；`photos*.test.ts`、`Dashboard.photos.test.tsx` |
 | FR-003 | 預算追蹤 | P0 | 已實作 | renovation-tracker | `BudgetSection.tsx`、`budget.ts`；`budget*.test.ts`、`Dashboard.budget.test.tsx` |
-| FR-004 | 屋主端唯讀分享連結 | P0 | 部分 | renovation-tracker | `share.ts`、`ReadOnlyView.tsx`；缺個資預設遮蔽、新功能摘要、撤銷 |
-| FR-005 | 師傅排程與提醒 | P1 | 已實作（3 測試時間相依失敗） | renovation-tracker | `ScheduleSection.tsx`、`schedule.ts`；`Dashboard.schedule.test.tsx` |
+| FR-004 | 屋主端唯讀分享連結 | P0 | 已實作（M1 強化；撤銷／到期屬 FR-015，未實作） | renovation-tracker | `share.ts`（snapshot v2）、`ReadOnlyView.tsx`、分享對話框個資勾選；`share.test.ts`、`Dashboard.share.test.tsx` |
+| FR-005 | 師傅排程與提醒 | P1 | 已實作（時間相依測試已修正） | renovation-tracker | `ScheduleSection.tsx`、`schedule.ts`；`Dashboard.schedule.test.tsx` |
 | FR-006 | 保固紀錄 | P1 | 已實作 | renovation-tracker | `WarrantySection.tsx`、`warranty.ts`；`warranty*.test.ts` |
-| FR-007 | 預算變更單與核准 | P0 | 部分（雛形） | decoration-tracker | `web/src/lib/db.ts`、`pages/BudgetPage.tsx`；M1 AC-001 |
-| FR-008 | 合約金額與收款概要 | P1 | 部分（雛形） | decoration-tracker | `Project.total／paid`；M1 AC-002 |
-| FR-009 | 階段驗收清單 | P0 | 部分（雛形） | decoration-tracker | `pages/AcceptancePage.tsx`；M1 AC-003 |
-| FR-010 | 照片進度回報 | P0 | 未實作 | — | M1 AC-004 |
-| FR-011 | README 與使用說明 | P0 | 未實作 | — | M1 AC-006 |
+| FR-007 | 預算變更單與核准 | P0 | 已實作（M1；核准為本機狀態紀錄，非電子簽章） | renovation-tracker | `changeOrders.ts`、`ChangeOrderSection.tsx`；`changeOrders*.test.ts(x)`；AC-001 |
+| FR-008 | 合約金額與收款概要 | P1 | 已實作（M1） | renovation-tracker | `contract.ts`、`ContractSection.tsx`；`contract.test.ts`、`Dashboard.contract.test.tsx`；AC-002 |
+| FR-009 | 階段驗收清單 | P0 | 已實作（M1） | renovation-tracker | `acceptance.ts`、`AcceptanceSection.tsx`、`StageRow.tsx`；`acceptance*.test.ts(x)`；AC-003 |
+| FR-010 | 照片進度回報 | P0 | 已實作（M1） | renovation-tracker | `photoReport.ts`、`PhotoReportSection.tsx`；`photoReport.test.ts`、`Dashboard.photoReport.test.tsx`；AC-004 |
+| FR-011 | README 與使用說明 | P0 | 已實作（M1） | renovation-tracker | `README.md`、`docs/USER-GUIDE.md`、`HelpDialog.tsx`；`Dashboard.help.test.tsx`；AC-006 |
 | FR-012 | 多案件管理 | P1 | 部分（雛形） | decoration-tracker | `pages/DashboardPage.tsx`；M2 |
 | FR-013 | 帳號與角色權限 | P1 | 未實作 | — | M2 設計／M3 |
 | FR-014 | 雲端同步與照片雲端儲存 | P1 | 未實作 | — | M2 mock／M3 |
@@ -64,38 +89,64 @@
 
 | # | 項目 | 里程碑 | 狀態 | 對應測試 |
 |---|---|---|---|---|
-| 1 | 預算變更單（新增／核准／拒絕） | M1 | 未開始 | 待建：`changeOrders*.test.ts(x)` |
-| 2 | 合約金額／已收／待收 | M1 | 未開始 | 待建：`contract.test.ts` |
-| 3 | 驗收清單 | M1 | 未開始 | 待建：`acceptance*.test.ts(x)` |
-| 4 | ESLint flat config → `lint` script | M1 | 未開始 | `npm run lint` |
+| 1 | 預算變更單（新增／核准／拒絕） | M1 | 已搬入（以 IndexedDB／store／validation 重寫） | `changeOrders.test.ts`、`changeOrders.db.test.ts`、`Dashboard.changeOrders.test.tsx` |
+| 2 | 合約金額／已收／待收 | M1 | 已搬入（獨立 `contracts` store，與 FR-003 預算分開） | `contract.test.ts`、`Dashboard.contract.test.tsx`、`acceptance.db.test.ts` |
+| 3 | 驗收清單 | M1 | 已搬入（改為每階段可增刪，含檢查日與備註） | `acceptance.test.ts`、`acceptance.db.test.ts`、`Dashboard.acceptance.test.tsx` |
+| 4 | ESLint flat config → `lint` script | M1 | 已搬入（`web/eslint.config.js`，依 React 18／Vitest 調整） | `qualityGate.test.ts`；`npm run lint` |
 | 5 | 多案件列表 UI | M2 | 未開始 | — |
-| — | 時間軸／advanceStage、mock 照片、localStorage、靜態 dashboard.html、示範人名 seed、React 19／Tailwind 技術棧 | 不搬 | — | 理由見 `PRD/SPEC.md` §13.2 |
+| — | 時間軸／advanceStage、mock 照片、localStorage、靜態 dashboard.html、示範人名 seed、React 19／Tailwind 技術棧 | 不搬 | 未搬（`mergeChecklist.test.ts` 檢查） | 理由見 `PRD/SPEC.md` §13.2 |
 
-## Deterministic checks（2026-11-16，Node v26.13.1，`main` @ `9ceea39`）
+## Deterministic checks（2026-11-16，Node v26.13.1，`feat/m1`）
 
 | Command（於 `web/`） | Exit | 結果 |
 |---|---:|---|
-| `npm ci` | 0 | 安裝完成 |
-| `npm run typecheck` | 0 | 通過 |
-| `npm test` | 1 | 438 tests：435 通過、3 失敗（`Dashboard.schedule.test.tsx` 提醒相關，寫死 2026-09 日期且依賴系統時鐘） |
-| `npm run build` | 0 | Vite build 完成 |
-| `npm run lint` | 1 | script 不存在（尚未配置） |
-| GitHub Actions `ci.yml` | — | 最近 3 次 run 皆失敗：workflow 檔解析失敗 |
+| `npm ci` | 0 | 乾淨安裝完成 |
+| `npm run lint` | 0 | `eslint .`：0 errors、4 warnings（`react-refresh/only-export-components`） |
+| `npm run typecheck` | 0 | `tsc --noEmit` 通過 |
+| `npm test` | 0 | 39 檔／619 tests 全數通過（M1 前為 25 檔／438 tests，其中 3 失敗） |
+| `npm run build` | 0 | `tsc --noEmit && vite build` 完成（JS 302.80 kB／gzip 86.53 kB、CSS 45.13 kB） |
+| GitHub Actions `ci.yml` | — | __CI__ |
 
-decoration-tracker（只讀，未修改）：`npm ci` 0；`npm run lint` 0；`npm run build` 0，但產物只有轉址到靜態模板 `dashboard.html`，React app 未掛載；`npm test` 在 Node v26 下 24 失敗／4 通過（jsdom 下 `localStorage` 為 undefined），CI 使用 Node 20，結果未驗證；GitHub 上最近一次 CI run 失敗。
+GOAL 指定的根目錄檢查：
 
-## 風險與待確認
+| Command（於 repo 根目錄） | 結果 |
+|---|---|
+| AC-006：README 六個標題的 `for … grep -q` | 無輸出（全部存在） |
+| AC-006：`grep -q '## 業者端' docs/USER-GUIDE.md && grep -q '## 屋主端' docs/USER-GUIDE.md` | exit 0 |
+| AC-007：`git diff main -- web/src/__tests__/Dashboard.schedule.test.tsx \| grep -c '^-.*expect('` | `0` |
+| AC-008：`git grep -nE '…' -- . ':!PRD/SPEC.md' ':!GOAL.md' ':!SOP.md'` | 無輸出 |
+| AC-008：`git ls-files \| grep -E '(^\|/)\.env'` | 無輸出 |
+| AC-009：`grep -c '已搬入' STATUS.md` | `6`（≥ 4） |
+| AC-009：`gh repo view openclawsean024-create/decoration-tracker --json isArchived --jq .isArchived` | `false` |
+| `git diff --check` | 無輸出 |
 
-- 產品名稱：Notion「裝修進度管理平台」vs 程式「裝修進度神器」。
-- 部署目標：AGENTS 舊版寫 Vercel，CI 寫 GitHub Pages；正式網址未知。
-- 定價：「NT$2,000–5,000／案」僅為 decoration-tracker GOAL 內的假設，未驗證。
-- 屋主是否需付費、變更單核准是否需具法律效力（電子簽章）待確認。
-- 分享 URL 目前可能帶出地址與保固聯絡方式（使用者有填時），URL 未加密且不可撤銷；M1 AC-005 處理。
-- 測試資料中的電話使用 `0912345678`，建議 M1 改為更明顯的假號碼（如 `0900-000-000`）。
-- decoration-tracker 封存與否由 Sean 決定，不在 agent session 執行。
+既有測試檔的變更（皆未刪除或放寬斷言）：`Dashboard.schedule.test.tsx` 只新增固定時鐘與一個 AC-007 測試；`share.test.ts`、`Dashboard.share.test.tsx` 只新增 AC-005 區塊；其餘被改動的 11 行都是把測試資料中的電話 `0912345678` 換成 `0900-000-000`、地名換成 `測試市示範路 1 號`（AC-008），其中 3 行 `expect(` 的期望值隨輸入值同步替換，斷言強度不變。
+
+基準（`main` @ `9ceea39`，M1 之前）：`npm test` 438 tests 中 3 失敗、`npm run lint` script 不存在、GitHub Actions workflow 無法解析。
+
+decoration-tracker（只讀，未修改）：本 session 僅以 `gh api`／`gh repo view` 讀取其 `eslint.config.js`、`package.json`、`src/lib/db.ts` 作為重寫參考；未 clone、未 push、未封存。
+
+## 待確認事項（沿用 GOAL.md 寫法，本次未自行決定）
+
+| 事項 | SPEC／GOAL 的寫法 | M1 的處理 |
+|---|---|---|
+| 產品名稱 | Notion／GOAL「裝修進度管理平台」vs 程式「裝修進度神器」，待確認 | README、使用說明、STATUS 沿用 GOAL 的「裝修進度管理平台」；App 畫面文字未更動（既有測試鎖定「裝修進度神器」）。待 Sean 決定後再統一 |
+| 部署目標 | Vercel 或 GitHub Pages 待確認；GOAL 將部署目標調整列為 Out of scope | 未部署、未調整目標；CI 的 deploy job 保留但停用。正式網址未知 |
+| 定價 | 「NT$2,000–5,000／案」僅為未驗證假設；M1 不做計費 | 未實作任何計費、方案或價格顯示 |
+| 成功指標目標值 | SPEC §19：M2／M3 目標值待確認 | 未設定任何目標值；M1 指標僅為「AC 全數通過」與「合併清單 4/4」 |
+| 屋主是否付費、變更單核准是否需法律效力 | 待確認；M1 明示「本機紀錄、非電子簽章」 | 畫面、README、使用說明皆標示為本機狀態紀錄，未實作電子簽章，也未宣稱法律效力 |
+| decoration-tracker 封存與否 | 由 Sean 決定，不在 agent session 執行 | 未封存、未修改 |
+
+## 風險與已知限制
+
+- 資料僅存於單一裝置的 IndexedDB；清除瀏覽器資料即遺失，M1 無匯出／備份（FR-017，M2）。
+- 分享 URL 未加密、不可撤銷、不會過期；M1 以「預設不含地址與聯絡方式」降低外洩面，撤銷需 FR-015。
+- 分享 URL 長度隨資料量成長（階段、照片 metadata、變更單都在 hash 內）；未量測瀏覽器或通訊軟體的長度上限。
+- M1 Exit gate 的瀏覽器 smoke（含 375px 無頁面級水平捲軸）尚未由獨立驗收者執行；本次僅以 jsdom 測試與 `npm run build` 驗證。
+- `npm run lint` 目前有 4 個 `react-refresh/only-export-components` warning（既有 `store.tsx`、`PhotoPreview.tsx` 的匯出方式），不影響 exit code。
 
 ## 下一步
 
-1. Sean 覆審 `PRD/SPEC.md` 與 `GOAL.md`，確認待確認事項。
-2. 依 GOAL AC-007 先修測試與 CI，讓品質閘門恢復綠燈。
-3. 依 AC-001～AC-006 開發 M1，完成後更新本檔與 Notion。
+1. Sean 覆審 M1 PR：範圍、UI（`PRD/UI-SPEC.md` v1.4）、schema v6 與上方「需 Sean 人審」項目。
+2. 由獨立驗收者執行 GOAL Exit gate：乾淨安裝後 `npm ci && npm run lint && npm run typecheck && npm test && npm run build` 與瀏覽器 smoke。
+3. 確認待確認事項（產品名稱、部署目標）；合併與 release 後同步 Notion。M2 與任何外部整合在 Exit gate 通過前不開始。
