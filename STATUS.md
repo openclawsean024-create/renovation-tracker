@@ -126,6 +126,13 @@ GOAL 指定的根目錄檢查：
 
 decoration-tracker（只讀，未修改）：本 session 僅以 `gh api`／`gh repo view` 讀取其 `eslint.config.js`、`package.json`、`src/lib/db.ts` 作為重寫參考；未 clone、未 push、未封存。
 
+## M1 Exit gate — Sean 覆審
+
+| 項目 | 狀態 | 紀錄 |
+|---|---|---|
+| 合併清單（decoration-tracker → 本 repo） | 通過 | 2026-11-16 Sean 在 Claude Code session 中回覆：「合併清單覆審通過」 |
+| 範圍與 UI（含 `PRD/UI-SPEC.md` v1.4、新增的工程地址欄位、schema v6、停用的 deploy job） | 待確認 | 上述回覆只提到合併清單；UI 是否通過尚未明確表示 |
+
 ## M1 Exit gate — 獨立驗收（2026-11-16）
 
 由一個未參與開發、沒有開發脈絡的獨立驗收 agent 執行；只讀、未修改任何 repo。**Sean 的範圍與 UI 覆審不在此範圍內，仍待執行。**
