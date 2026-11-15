@@ -8,9 +8,16 @@
 //   v3 — adds budgets store (FR-003) with `byProjectId` index.
 //   v4 — adds schedules store (FR-005) with `byProjectId` index.
 //   v5 — adds warranties store (FR-006) with `byProjectId` index.
+//   v6 — M1 (PRD/SPEC.md §12): adds changeOrders (FR-007, `byProjectId`),
+//        contracts (FR-008, keyed by `projectId`, one record per project) and
+//        acceptanceItems (FR-009, `byProjectId` + `byStageId`). Additive only:
+//        no existing store or record is touched by the upgrade.
 
 import type {
+  AcceptanceItem,
   BudgetItem,
+  ChangeOrder,
+  ContractRecord,
   PhotoRecord,
   Project,
   ScheduleItem,
@@ -19,13 +26,16 @@ import type {
 } from './types'
 
 const DB_NAME = 'renovation-tracker'
-const DB_VERSION = 5
+const DB_VERSION = 6
 export const STORE_PROJECTS = 'projects'
 export const STORE_STAGES = 'stages'
 export const STORE_PHOTOS = 'photos'
 export const STORE_BUDGETS = 'budgets'
 export const STORE_SCHEDULES = 'schedules'
 export const STORE_WARRANTIES = 'warranties'
+export const STORE_CHANGE_ORDERS = 'changeOrders'
+export const STORE_CONTRACTS = 'contracts'
+export const STORE_ACCEPTANCE_ITEMS = 'acceptanceItems'
 
 let cachedDb: Promise<IDBDatabase> | null = null
 
@@ -58,6 +68,19 @@ export function openDb(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(STORE_WARRANTIES)) {
         const warrantyStore = db.createObjectStore(STORE_WARRANTIES, { keyPath: 'id' })
         warrantyStore.createIndex('byProjectId', 'projectId', { unique: false })
+      }
+      if (!db.objectStoreNames.contains(STORE_CHANGE_ORDERS)) {
+        const changeOrderStore = db.createObjectStore(STORE_CHANGE_ORDERS, { keyPath: 'id' })
+        changeOrderStore.createIndex('byProjectId', 'projectId', { unique: false })
+      }
+      if (!db.objectStoreNames.contains(STORE_CONTRACTS)) {
+        // One contract record per project → the project id is the key.
+        db.createObjectStore(STORE_CONTRACTS, { keyPath: 'projectId' })
+      }
+      if (!db.objectStoreNames.contains(STORE_ACCEPTANCE_ITEMS)) {
+        const acceptanceStore = db.createObjectStore(STORE_ACCEPTANCE_ITEMS, { keyPath: 'id' })
+        acceptanceStore.createIndex('byProjectId', 'projectId', { unique: false })
+        acceptanceStore.createIndex('byStageId', 'stageId', { unique: false })
       }
     }
     req.onsuccess = () => resolve(req.result)
@@ -377,7 +400,141 @@ export async function deleteWarrantiesByProject(projectId: string): Promise<void
   })
 }
 
-/** Wipe all projects + stages + photos + budgets + schedules + warranties — only used by tests. */
+// ---------- Change orders (FR-007) ----------
+
+export async function getAllChangeOrders(): Promise<ChangeOrder[]> {
+  const db = await openDb()
+  return runTx(db, [STORE_CHANGE_ORDERS], 'readonly', (tx) => {
+    return reqAsPromise<ChangeOrder[]>(tx.objectStore(STORE_CHANGE_ORDERS).getAll() as IDBRequest<ChangeOrder[]>)
+  })
+}
+
+export async function getChangeOrdersByProject(projectId: string): Promise<ChangeOrder[]> {
+  const db = await openDb()
+  return runTx(db, [STORE_CHANGE_ORDERS], 'readonly', (tx) => {
+    const index = tx.objectStore(STORE_CHANGE_ORDERS).index('byProjectId')
+    return reqAsPromise<ChangeOrder[]>(index.getAll(projectId) as IDBRequest<ChangeOrder[]>)
+  })
+}
+
+export async function putChangeOrder(record: ChangeOrder): Promise<void> {
+  const db = await openDb()
+  await runTx(db, [STORE_CHANGE_ORDERS], 'readwrite', (tx) => {
+    tx.objectStore(STORE_CHANGE_ORDERS).put(record)
+  })
+}
+
+export async function deleteChangeOrder(id: string): Promise<void> {
+  const db = await openDb()
+  await runTx(db, [STORE_CHANGE_ORDERS], 'readwrite', (tx) => {
+    tx.objectStore(STORE_CHANGE_ORDERS).delete(id)
+  })
+}
+
+/** Remove every change order of one project. */
+export async function deleteChangeOrdersByProject(projectId: string): Promise<void> {
+  const db = await openDb()
+  await runTx(db, [STORE_CHANGE_ORDERS], 'readwrite', (tx) => {
+    const index = tx.objectStore(STORE_CHANGE_ORDERS).index('byProjectId')
+    const req = index.openCursor(projectId)
+    req.onsuccess = () => {
+      const cursor = req.result
+      if (!cursor) return
+      cursor.delete()
+      cursor.continue()
+    }
+  })
+}
+
+// ---------- Contracts (FR-008) ----------
+
+export async function getAllContracts(): Promise<ContractRecord[]> {
+  const db = await openDb()
+  return runTx(db, [STORE_CONTRACTS], 'readonly', (tx) => {
+    return reqAsPromise<ContractRecord[]>(
+      tx.objectStore(STORE_CONTRACTS).getAll() as IDBRequest<ContractRecord[]>,
+    )
+  })
+}
+
+export async function getContract(projectId: string): Promise<ContractRecord | undefined> {
+  const db = await openDb()
+  return runTx(db, [STORE_CONTRACTS], 'readonly', (tx) => {
+    return reqAsPromise<ContractRecord | undefined>(
+      tx.objectStore(STORE_CONTRACTS).get(projectId) as IDBRequest<ContractRecord | undefined>,
+    )
+  })
+}
+
+export async function putContract(contract: ContractRecord): Promise<void> {
+  const db = await openDb()
+  await runTx(db, [STORE_CONTRACTS], 'readwrite', (tx) => {
+    tx.objectStore(STORE_CONTRACTS).put(contract)
+  })
+}
+
+export async function deleteContract(projectId: string): Promise<void> {
+  const db = await openDb()
+  await runTx(db, [STORE_CONTRACTS], 'readwrite', (tx) => {
+    tx.objectStore(STORE_CONTRACTS).delete(projectId)
+  })
+}
+
+// ---------- Acceptance items (FR-009) ----------
+
+export async function getAllAcceptanceItems(): Promise<AcceptanceItem[]> {
+  const db = await openDb()
+  return runTx(db, [STORE_ACCEPTANCE_ITEMS], 'readonly', (tx) => {
+    return reqAsPromise<AcceptanceItem[]>(tx.objectStore(STORE_ACCEPTANCE_ITEMS).getAll() as IDBRequest<AcceptanceItem[]>)
+  })
+}
+
+export async function getAcceptanceItemsByProject(projectId: string): Promise<AcceptanceItem[]> {
+  const db = await openDb()
+  return runTx(db, [STORE_ACCEPTANCE_ITEMS], 'readonly', (tx) => {
+    const index = tx.objectStore(STORE_ACCEPTANCE_ITEMS).index('byProjectId')
+    return reqAsPromise<AcceptanceItem[]>(index.getAll(projectId) as IDBRequest<AcceptanceItem[]>)
+  })
+}
+
+export async function putAcceptanceItem(record: AcceptanceItem): Promise<void> {
+  const db = await openDb()
+  await runTx(db, [STORE_ACCEPTANCE_ITEMS], 'readwrite', (tx) => {
+    tx.objectStore(STORE_ACCEPTANCE_ITEMS).put(record)
+  })
+}
+
+export async function deleteAcceptanceItem(id: string): Promise<void> {
+  const db = await openDb()
+  await runTx(db, [STORE_ACCEPTANCE_ITEMS], 'readwrite', (tx) => {
+    tx.objectStore(STORE_ACCEPTANCE_ITEMS).delete(id)
+  })
+}
+
+export async function getAcceptanceItemsByStage(stageId: string): Promise<AcceptanceItem[]> {
+  const db = await openDb()
+  return runTx(db, [STORE_ACCEPTANCE_ITEMS], 'readonly', (tx) => {
+    const index = tx.objectStore(STORE_ACCEPTANCE_ITEMS).index('byStageId')
+    return reqAsPromise<AcceptanceItem[]>(index.getAll(stageId) as IDBRequest<AcceptanceItem[]>)
+  })
+}
+
+/** Remove every acceptance item of one stage — used when the stage is deleted. */
+export async function deleteAcceptanceItemsByStage(stageId: string): Promise<void> {
+  const db = await openDb()
+  await runTx(db, [STORE_ACCEPTANCE_ITEMS], 'readwrite', (tx) => {
+    const index = tx.objectStore(STORE_ACCEPTANCE_ITEMS).index('byStageId')
+    const req = index.openCursor(stageId)
+    req.onsuccess = () => {
+      const cursor = req.result
+      if (!cursor) return
+      cursor.delete()
+      cursor.continue()
+    }
+  })
+}
+
+/** Wipe every object store — only used by tests. */
 export async function clearAll(): Promise<void> {
   const db = await openDb()
   await runTx(
@@ -389,6 +546,9 @@ export async function clearAll(): Promise<void> {
       STORE_BUDGETS,
       STORE_SCHEDULES,
       STORE_WARRANTIES,
+      STORE_CHANGE_ORDERS,
+      STORE_CONTRACTS,
+      STORE_ACCEPTANCE_ITEMS,
     ],
     'readwrite',
     (tx) => {
@@ -398,6 +558,9 @@ export async function clearAll(): Promise<void> {
       tx.objectStore(STORE_BUDGETS).clear()
       tx.objectStore(STORE_SCHEDULES).clear()
       tx.objectStore(STORE_WARRANTIES).clear()
+      tx.objectStore(STORE_CHANGE_ORDERS).clear()
+      tx.objectStore(STORE_CONTRACTS).clear()
+      tx.objectStore(STORE_ACCEPTANCE_ITEMS).clear()
     },
   )
 }
@@ -409,17 +572,43 @@ export interface LoadResult {
   budgets: BudgetItem[]
   schedules: ScheduleItem[]
   warranties: WarrantyRecord[]
+  changeOrders: ChangeOrder[]
+  contracts: ContractRecord[]
+  acceptanceItems: AcceptanceItem[]
 }
 
 /** Convenience: load everything in one round trip. */
 export async function loadAll(): Promise<LoadResult> {
-  const [projects, stages, photos, budgets, schedules, warranties] = await Promise.all([
+  const [
+    projects,
+    stages,
+    photos,
+    budgets,
+    schedules,
+    warranties,
+    changeOrders,
+    contracts,
+    acceptanceItems,
+  ] = await Promise.all([
     getAllProjects(),
     getAllStages(),
     getAllPhotos(),
     getAllBudgets(),
     getAllSchedules(),
     getAllWarranties(),
+    getAllChangeOrders(),
+    getAllContracts(),
+    getAllAcceptanceItems(),
   ])
-  return { projects, stages, photos, budgets, schedules, warranties }
+  return {
+    projects,
+    stages,
+    photos,
+    budgets,
+    schedules,
+    warranties,
+    changeOrders,
+    contracts,
+    acceptanceItems,
+  }
 }

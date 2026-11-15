@@ -716,7 +716,11 @@ dialog {
   box-shadow: 0 24px 80px rgb(23 32 51 / 22%);
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  /* Content taller than the viewport (e.g. the share dialog with its privacy
+     options, or the help dialog) must stay reachable: scroll vertically
+     inside the modal instead of clipping the action buttons. */
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 .modal-wide { width: min(720px, calc(100% - 32px)); }
 .modal h2 { margin: 0; }
@@ -1353,6 +1357,169 @@ body.readonly .gantt-hit { pointer-events: none; }
   gap: var(--s2);
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+
+/* ───────────── M1 record sections (FR-007 ~ FR-011) ─────────────
+   Shared primitives for 合約與收款 / 預算變更單 / 階段驗收 / 照片進度回報.
+   Built from the existing tokens only — see PRD/UI-SPEC.md §4 "M1 sections". */
+
+.record-section-header {
+  padding: var(--s6) var(--s6) 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--s4);
+}
+.record-section-header h2 { margin: 0; }
+.record-section-sub { color: var(--muted); font-size: 13px; margin-top: var(--s1); }
+
+.record-notice,
+.record-alert,
+.record-footnote {
+  margin: var(--s4) var(--s6) 0;
+  font-size: 13px;
+}
+.record-notice {
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--subtle);
+  color: var(--ink);
+}
+.record-alert {
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--danger);
+  border-radius: var(--r-sm);
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.record-notice .symbol,
+.record-alert .symbol { font-weight: 700; margin-right: var(--s2); }
+.record-footnote { color: var(--muted); padding-bottom: var(--s6); }
+
+.record-list {
+  list-style: none;
+  margin: var(--s4) 0 0;
+  padding: 0 var(--s6) var(--s4);
+}
+.record-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--s4);
+  padding: var(--s3) 0;
+  border-top: 1px solid var(--border);
+  align-items: center;
+}
+.record-row[data-status="rejected"] .record-name { color: var(--muted); }
+.record-row-main { min-width: 0; }
+.record-row-header {
+  display: flex;
+  align-items: center;
+  gap: var(--s2) var(--s3);
+  flex-wrap: wrap;
+}
+.record-name { font-weight: 600; font-size: 15px; margin: 0; overflow-wrap: anywhere; }
+.record-amount { font-variant-numeric: tabular-nums; font-weight: 600; }
+.record-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2) var(--s4);
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+}
+.record-actions {
+  display: flex;
+  gap: var(--s2);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.budget-summary-cell .value[data-tone="overrun"] { color: var(--danger); }
+
+/* stage row acceptance badge (FR-009) */
+.stage-acceptance { font-variant-numeric: tabular-nums; }
+.stage-acceptance-warning { color: var(--danger); font-weight: 550; }
+
+/* acceptance checklist */
+.acceptance-stage-list { list-style: none; margin: var(--s4) 0 0; padding: 0 0 var(--s4); }
+.acceptance-stage { border-top: 1px solid var(--border); padding: var(--s4) 0 0; }
+.acceptance-stage-header {
+  padding: 0 var(--s6);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s4);
+  flex-wrap: wrap;
+}
+.acceptance-stage .record-alert { margin-top: var(--s3); }
+.acceptance-empty { padding: var(--s2) var(--s6) var(--s4); font-size: 13px; }
+.acceptance-items { margin-top: var(--s2); }
+.acceptance-toggle { flex-wrap: wrap; cursor: pointer; }
+
+/* photo progress report */
+.photo-report-list { list-style: none; margin: var(--s4) 0 0; padding: 0 var(--s6) var(--s4); }
+.photo-report-row {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: var(--s4);
+  padding: var(--s3) 0;
+  border-top: 1px solid var(--border);
+  align-items: center;
+}
+.photo-report-thumb {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--subtle);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.project-address { display: grid; gap: var(--s1); justify-items: start; }
+.project-address small { color: var(--muted); font-size: 12px; }
+.project-address p { margin: 0; overflow-wrap: anywhere; }
+.project-address .btn { min-height: 36px; padding: 6px 12px; font-size: 13px; }
+.readonly-banner-source { overflow-wrap: anywhere; }
+
+/* help entry + dialog */
+.help-button { min-height: 36px; padding: 6px 12px; font-size: 13px; }
+.help-content { font-size: 14px; line-height: 1.7; }
+.help-content h3 { margin: var(--s4) 0 var(--s2); font-size: 15px; }
+.help-content h3:first-child { margin-top: 0; }
+.help-content ol,
+.help-content ul { padding-left: 1.4em; margin: 0; }
+.help-content li + li { margin-top: var(--s1); }
+
+/* share dialog privacy opt-in (AC-005) */
+.share-privacy {
+  margin: var(--s4) 0 0;
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  display: grid;
+  gap: var(--s1);
+  min-width: 0;
+}
+.share-privacy legend { font-size: 13px; font-weight: 600; padding: 0 var(--s2); }
+.share-dialog-warning { margin: var(--s4) 0 0; }
+
+@media (max-width: 767px) {
+  .record-section-header { flex-direction: column; align-items: stretch; padding: var(--s4) var(--s4) 0; }
+  .record-section-header .btn { width: 100%; }
+  .record-notice, .record-alert, .record-footnote { margin-inline: var(--s4); }
+  .record-list, .photo-report-list { padding-inline: var(--s4); }
+  .record-row { grid-template-columns: minmax(0, 1fr); }
+  .record-actions { justify-content: flex-start; }
+  .acceptance-stage-header { padding-inline: var(--s4); }
+  .acceptance-empty { padding-inline: var(--s4); }
+  .photo-report-row { grid-template-columns: 56px minmax(0, 1fr); gap: var(--s3); }
+  .photo-report-thumb { width: 56px; height: 56px; }
 }
 
 /* ───────────────────────── budget section ───────────────────────── */

@@ -1,5 +1,17 @@
 # CHANGELOG
 
+## v5.0-M1 / 2026-11-16（分支 `feat/m1`，尚未合併）
+
+- AC-007：修正 `Dashboard.schedule.test.tsx` 3 個時間相依測試（固定假時鐘）、新增 ESLint flat config 與 `lint` script、重寫 `.github/workflows/ci.yml`。
+- FR-007／AC-001：預算變更單（新增、編輯、刪除、核准、拒絕），只有已核准計入調整後總額。
+- FR-008／AC-002：合約金額與收款概要（原合約、已核准變更合計、調整後總額、已收、待收、溢收提示）。
+- FR-009／AC-003：每階段可自訂的驗收清單，通過時自動記錄檢查日。
+- FR-010／AC-004：依階段彙整的照片進度回報。
+- FR-004／AC-005：分享 snapshot v2，納入上述摘要；地址與聯絡方式預設不分享。
+- FR-011／AC-006：README、`docs/USER-GUIDE.md` 與 App 內「使用說明」。
+- IndexedDB schema v5 → v6（僅新增 `changeOrders`、`contracts`、`acceptanceItems` 三個 store）。
+- 以上功能自 decoration-tracker 依 `PRD/SPEC.md` §13 重寫，未搬入其 localStorage、seed、時間軸、mock 照片、靜態模板頁或 React 19／Tailwind 技術棧。
+
 ## v4.0 / 2026-09-20
 
 - 將 FR-002～FR-006 補成可執行的 local-first MVP 規格，加入 domain model、使用者流程、acceptance criteria、測試要求與完整 Definition of Done。

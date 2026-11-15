@@ -10,6 +10,7 @@ import { displayDate, monthSpans } from '../dates'
 import { dayGridTemplate } from '../gantt'
 import { SHARE_HASH_KEY, type ShareSnapshot, type ShareWarranty } from '../share'
 import {
+  CHANGE_ORDER_STATUS_LABELS,
   PHOTO_KIND_LABELS,
   PROJECT_STATUS_LABELS,
   STAGE_STATUS_LABELS,
@@ -19,6 +20,13 @@ import {
   type StageStatus,
 } from '../types'
 import { formatBudgetAmount, formatSignedAmount } from '../budget'
+import { CHANGE_ORDER_LOCAL_NOTICE } from '../changeOrders'
+import { formatAcceptanceProgress } from '../acceptance'
+import {
+  PHOTO_REPORT_UNASSIGNED_LABEL,
+  formatPhotoReportCount,
+} from '../photoReport'
+import { ChangeOrderStatusPill } from './ChangeOrderSection'
 
 export interface ReadOnlyViewProps {
   snapshot: ShareSnapshot
@@ -87,6 +95,15 @@ export function ReadOnlyView({ snapshot, sourceUrl }: ReadOnlyViewProps) {
   )
 
   const warranties: ShareWarranty[] = snapshot.warranties ?? []
+  // v2 sections (GOAL AC-005). All optional: a v1 link has none of them and
+  // the corresponding blocks are simply not rendered.
+  const changeOrders = snapshot.changeOrders
+  const contractSummary = snapshot.contractSummary
+  const acceptanceSummary = snapshot.acceptanceSummary
+  const photoReport = snapshot.photoReport
+  const scheduleContacts = snapshot.scheduleContacts ?? []
+  const stageNameByRef: Record<string, string> = {}
+  for (const st of snapshot.stages) stageNameByRef[st.id] = st.name
   const percent = snapshot.stageSummary.percentComplete
 
   return (
@@ -133,6 +150,19 @@ export function ReadOnlyView({ snapshot, sourceUrl }: ReadOnlyViewProps) {
       <main className="app-main wrap" id="main">
         <section id="overview" aria-labelledby="readonly-title">
           <ReadOnlyBanner sourceUrl={sourceUrl} />
+          <p className="readonly-section-note" data-testid="readonly-privacy-note">
+            此連結未加密、無法撤銷，請勿轉傳給無關的人。
+            {snapshot.privacy
+              ? snapshot.privacy.includesAddress || snapshot.privacy.includesContacts
+                ? `分享者選擇包含：${[
+                    snapshot.privacy.includesAddress ? '工程地址' : '',
+                    snapshot.privacy.includesContacts ? '聯絡方式' : '',
+                  ]
+                    .filter(Boolean)
+                    .join('、')}。`
+                : '此快照不含工程地址與聯絡方式。'
+              : ''}
+          </p>
 
           <div className="hero">
             <div className="project-intro">
@@ -167,6 +197,11 @@ export function ReadOnlyView({ snapshot, sourceUrl }: ReadOnlyViewProps) {
                 <span className="readonly-snapshot-meta" data-testid="readonly-generated-at">
                   快照產生時間：{formatGeneratedAt(snapshot.generatedAt)}
                 </span>
+                {snapshot.project.address ? (
+                  <span className="readonly-snapshot-meta" data-testid="readonly-project-address">
+                    工程地址：{snapshot.project.address}
+                  </span>
+                ) : null}
               </div>
             </div>
           </div>
@@ -368,6 +403,189 @@ export function ReadOnlyView({ snapshot, sourceUrl }: ReadOnlyViewProps) {
           </div>
         </section>
 
+        {photoReport ? (
+          <section className="section" id="photo-report" aria-labelledby="readonly-photo-report-heading">
+            <header className="section-header">
+              <div className="section-heading">
+                <h2 id="readonly-photo-report-heading">照片進度回報</h2>
+              </div>
+            </header>
+            <p className="readonly-section-note" data-testid="readonly-photo-report-note">
+              照片原圖僅存於業者裝置，雲端照片分享規劃於後續版本。此處只顯示各階段的照片數與最新拍攝日。
+            </p>
+            <ol className="record-list" data-testid="readonly-photo-report">
+              {snapshot.stages.map((stage) => {
+                const entry = photoReport.stages.find((p) => p.stageId === stage.id)
+                const count = entry?.count ?? 0
+                return (
+                  <li
+                    key={stage.id}
+                    className="record-row"
+                    data-testid={`readonly-photo-report-${stage.id}`}
+                  >
+                    <div className="record-row-main">
+                      <div className="record-row-header">
+                        <span className="record-name">{stage.name}</span>
+                        <span className="section-count">{formatPhotoReportCount(count)}</span>
+                      </div>
+                      {entry?.latestTakenOn ? (
+                        <div className="record-meta">
+                          <span>最新拍攝日：{displayDate(entry.latestTakenOn)}</span>
+                        </div>
+                      ) : null}
+                    </div>
+                  </li>
+                )
+              })}
+              {photoReport.unassigned.count > 0 ? (
+                <li className="record-row" data-testid="readonly-photo-report-unassigned">
+                  <div className="record-row-main">
+                    <div className="record-row-header">
+                      <span className="record-name">{PHOTO_REPORT_UNASSIGNED_LABEL}</span>
+                      <span className="section-count">
+                        {formatPhotoReportCount(photoReport.unassigned.count)}
+                      </span>
+                    </div>
+                    {photoReport.unassigned.latestTakenOn ? (
+                      <div className="record-meta">
+                        <span>最新拍攝日：{displayDate(photoReport.unassigned.latestTakenOn)}</span>
+                      </div>
+                    ) : null}
+                  </div>
+                </li>
+              ) : null}
+            </ol>
+          </section>
+        ) : null}
+
+        {contractSummary || changeOrders ? (
+          <section className="section" id="contract" aria-labelledby="readonly-contract-heading">
+            <header className="section-header">
+              <div className="section-heading">
+                <h2 id="readonly-contract-heading">合約收款與變更單</h2>
+                {changeOrders ? (
+                  <span className="section-count">{changeOrders.length} 筆變更單</span>
+                ) : null}
+              </div>
+            </header>
+            {contractSummary ? (
+              <div className="budget-summary" data-testid="readonly-contract-summary">
+                <div className="budget-summary-cell">
+                  <span className="label">原合約</span>
+                  <span className="value">{formatBudgetAmount(contractSummary.contractAmount)}</span>
+                </div>
+                <div className="budget-summary-cell">
+                  <span className="label">已核准變更合計</span>
+                  <span className="value">{formatSignedAmount(contractSummary.approvedChangeTotal)}</span>
+                </div>
+                <div className="budget-summary-cell">
+                  <span className="label">調整後總額</span>
+                  <span className="value">{formatBudgetAmount(contractSummary.adjustedTotal)}</span>
+                </div>
+                <div className="budget-summary-cell">
+                  <span className="label">已收</span>
+                  <span className="value">{formatBudgetAmount(contractSummary.receivedAmount)}</span>
+                </div>
+                <div className="budget-summary-cell">
+                  <span className="label">待收</span>
+                  <span
+                    className="value"
+                    data-tone={contractSummary.isOverpaid ? 'overrun' : 'normal'}
+                  >
+                    {formatSignedAmount(contractSummary.outstanding).replace(/^\+/, '')}
+                    {contractSummary.isOverpaid ? '（溢收）' : ''}
+                  </span>
+                </div>
+              </div>
+            ) : null}
+            {changeOrders ? (
+              <>
+                <p className="readonly-section-note" data-testid="readonly-change-order-notice">
+                  變更單狀態為{CHANGE_ORDER_LOCAL_NOTICE}；只有「已核准」計入調整後總額。
+                </p>
+                {changeOrders.length === 0 ? (
+                  <div className="empty-state">
+                    <p data-testid="readonly-change-order-empty">目前沒有變更單。</p>
+                  </div>
+                ) : (
+                  <ul className="record-list" data-testid="readonly-change-order-list">
+                    {changeOrders.map((order) => (
+                      <li
+                        key={order.id}
+                        className="record-row"
+                        data-testid={`readonly-change-order-${order.id}`}
+                      >
+                        <div className="record-row-main">
+                          <div className="record-row-header">
+                            <span className="record-name">{order.title}</span>
+                            <ChangeOrderStatusPill status={order.status} />
+                            <span className="record-amount">
+                              {order.amount < 0 ? '追減 ' : '追加 '}
+                              {formatSignedAmount(order.amount)}
+                            </span>
+                          </div>
+                          {order.decidedOn ? (
+                            <div className="record-meta">
+                              <span>
+                                {CHANGE_ORDER_STATUS_LABELS[order.status]}紀錄日：{displayDate(order.decidedOn)}
+                              </span>
+                            </div>
+                          ) : null}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            ) : null}
+          </section>
+        ) : null}
+
+        {acceptanceSummary ? (
+          <section className="section" id="acceptance" aria-labelledby="readonly-acceptance-heading">
+            <header className="section-header">
+              <div className="section-heading">
+                <h2 id="readonly-acceptance-heading">驗收進度</h2>
+                <span className="section-count" data-testid="readonly-acceptance-summary">
+                  {formatAcceptanceProgress(acceptanceSummary)}
+                </span>
+              </div>
+            </header>
+            {acceptanceSummary.stages.length === 0 ? (
+              <div className="empty-state">
+                <p data-testid="readonly-acceptance-empty">目前沒有驗收項目。</p>
+              </div>
+            ) : (
+              <ul className="record-list" data-testid="readonly-acceptance-list">
+                {acceptanceSummary.stages.map((entry) => (
+                  <li
+                    key={entry.stageId}
+                    className="record-row"
+                    data-testid={`readonly-acceptance-${entry.stageId}`}
+                  >
+                    <div className="record-row-main">
+                      <div className="record-row-header">
+                        <span className="record-name">
+                          {stageNameByRef[entry.stageId] ?? '階段'}
+                        </span>
+                        <span className="section-count">{formatAcceptanceProgress(entry)}</span>
+                      </div>
+                      {entry.hasWarning ? (
+                        <div className="record-meta">
+                          <span>
+                            <span aria-hidden="true">⚠</span> 階段已標記完成，但仍有{' '}
+                            {entry.total - entry.passed} 項驗收未通過
+                          </span>
+                        </div>
+                      ) : null}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        ) : null}
+
         <section className="section" id="warranties" aria-labelledby="readonly-warranty-heading">
           <header className="section-header">
             <div className="section-heading">
@@ -425,6 +643,29 @@ export function ReadOnlyView({ snapshot, sourceUrl }: ReadOnlyViewProps) {
           )}
         </section>
 
+        {scheduleContacts.length > 0 ? (
+          <section className="section" aria-labelledby="readonly-contacts-heading">
+            <header className="section-header">
+              <div className="section-heading">
+                <h2 id="readonly-contacts-heading">工班聯絡方式</h2>
+                <span className="section-count">{scheduleContacts.length} 筆</span>
+              </div>
+            </header>
+            <ul className="record-list" data-testid="readonly-schedule-contacts">
+              {scheduleContacts.map((c) => (
+                <li key={c.id} className="record-row" data-testid={`readonly-schedule-contact-${c.id}`}>
+                  <div className="record-row-main">
+                    <div className="record-row-header">
+                      <span className="record-name">{c.workerName}</span>
+                      <span className="record-meta">電話：{c.phone}</span>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+
         <footer>
           <span className="footer-wordmark">裝修進度神器</span>
           <span>唯讀分享模式 · 資料不會自動更新</span>
@@ -450,7 +691,12 @@ function ReadOnlyBanner({ sourceUrl }: { sourceUrl: string }) {
           這是「{sourceUrl.length > 0 ? '分享連結' : 'URL 分享連結'}」產生的唯讀快照，
           不可新增、編輯或刪除資料，也不會寫入本機 IndexedDB。
         </p>
-        <p className="readonly-banner-source" data-testid="readonly-source-url">{sourceUrl}</p>
+        {/* Only the page address is shown. The full link carries the whole
+            encoded snapshot (thousands of characters) and printing it pushed
+            the content several screens down on phones. */}
+        <p className="readonly-banner-source" data-testid="readonly-source-url">
+          {shareUrlLabel(sourceUrl)}
+        </p>
       </div>
     </section>
   )
@@ -585,6 +831,14 @@ function ReadOnlyGantt({ project, stages }: { project: Project; stages: Stage[] 
       </div>
     </>
   )
+}
+
+/** Page address without the encoded snapshot, e.g. `http://localhost:5173/`. */
+export function shareUrlLabel(sourceUrl: string): string {
+  if (!sourceUrl) return ''
+  const hashIndex = sourceUrl.indexOf('#')
+  const base = hashIndex === -1 ? sourceUrl : sourceUrl.slice(0, hashIndex)
+  return hashIndex === -1 ? base : `${base}（分享快照）`
 }
 
 function formatGeneratedAt(iso: string): string {

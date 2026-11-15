@@ -17,6 +17,11 @@ import { BudgetSection } from './BudgetSection'
 import { PhotoSection } from './PhotoSection'
 import { ScheduleSection } from './ScheduleSection'
 import { WarrantySection } from './WarrantySection'
+import { ContractSection } from './ContractSection'
+import { ChangeOrderSection } from './ChangeOrderSection'
+import { AcceptanceSection } from './AcceptanceSection'
+import { PhotoReportSection } from './PhotoReportSection'
+import { HelpDialog } from './HelpDialog'
 import { Modal } from './Modal'
 import { displayDate, todayISO } from '../dates'
 import { summarizeStages } from '../status'
@@ -24,11 +29,20 @@ import { summarizeBudget } from '../budget'
 import { summarizeSchedules } from '../schedule'
 import { summarizeWarranties } from '../warranty'
 import { layoutGantt } from '../gantt'
+import { sortChangeOrdersForDisplay, summarizeChangeOrders } from '../changeOrders'
+import { summarizeContract } from '../contract'
+import {
+  EMPTY_ACCEPTANCE_PROGRESS,
+  formatAcceptanceProgress,
+  summarizeAcceptance,
+  summarizeAcceptanceByStage,
+} from '../acceptance'
 import {
   SHARE_HASH_KEY,
   buildShareSnapshot,
   encodeShareSnapshot,
   stripShareUrl,
+  type SharePrivacyOptions,
   type ShareSnapshot,
 } from '../share'
 import {
@@ -128,6 +142,9 @@ export function Dashboard({
     budgets,
     schedules,
     warranties,
+    changeOrders,
+    contract,
+    acceptanceItems,
     createStage,
     updateStage,
     deleteStage,
@@ -142,6 +159,15 @@ export function Dashboard({
   const [shareDialogUrl, setShareDialogUrl] = useState<string>('')
   const [shareDialogOpen, setShareDialogOpen] = useState(false)
   const [shareDialogCopied, setShareDialogCopied] = useState(false)
+  // AC-005: personal data is opt-in. Both boxes start unticked every time
+  // the dialog is opened.
+  const [shareIncludeAddress, setShareIncludeAddress] = useState(false)
+  const [shareIncludeContacts, setShareIncludeContacts] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
+  const [addressOpen, setAddressOpen] = useState(false)
+  const [addressDraft, setAddressDraft] = useState('')
+  const [addressError, setAddressError] = useState<string | null>(null)
+  const addressTitleId = useId()
   const [activeSection, setActiveSection] = useState<string>('overview')
   const mainRef = useRef<HTMLElement | null>(null)
   const shareDialogTitleId = useId()
@@ -221,7 +247,134 @@ export function Dashboard({
     [warranties],
   )
 
+  const changeOrderSummary = useMemo(() => summarizeChangeOrders(changeOrders), [changeOrders])
+  const contractSummary = useMemo(
+    () => summarizeContract(contract, changeOrders),
+    [contract, changeOrders],
+  )
+  const acceptanceSummary = useMemo(() => summarizeAcceptance(acceptanceItems), [acceptanceItems])
+  const acceptanceByStage = useMemo(
+    () => summarizeAcceptanceByStage(acceptanceItems),
+    [acceptanceItems],
+  )
+
   const canShare = loadState === 'ready' && project !== null
+
+  /**
+   * Build the share URL for the current data and the given privacy choice.
+   * Pure with respect to React state — callers decide what to do with it.
+   */
+  const buildShareUrlFor = useCallback(
+    (privacy: SharePrivacyOptions): string | null => {
+      if (!project || typeof window === 'undefined') return null
+      const layout = layoutGantt(project, stages)
+      const snapshot: ShareSnapshot = buildShareSnapshot({
+        project,
+        stages,
+        stageSummary: {
+          total: stageSummary.total,
+          completed: stageSummary.completed,
+          inProgress: stageSummary.inProgress,
+          blocked: stageSummary.blocked,
+          notStarted: stageSummary.notStarted,
+          percentComplete: stageSummary.percentComplete,
+        },
+        gantt: {
+          totalDays: layout.totalDays,
+          days: layout.days,
+          rows: layout.rows,
+        },
+        photos: photos.map((p) => ({
+          id: p.id,
+          kind: p.kind,
+          ...(p.caption !== undefined ? { caption: p.caption } : {}),
+          takenOn: p.takenOn,
+          fileName: p.fileName,
+          mimeType: p.mimeType,
+          // Source-only fields for the per-stage photo report; the snapshot
+          // builder never writes them to the URL.
+          stageId: p.stageId,
+          createdAt: p.createdAt,
+        })),
+        budgetSummary: {
+          total: budgetSummary.total,
+          totalPlanned: budgetSummary.totalPlanned,
+          totalActual: budgetSummary.totalActual,
+          remaining: budgetSummary.remaining,
+          isOverrun: budgetSummary.isOverrun,
+          totalOverrun: budgetSummary.totalOverrun,
+          overrunItemCount: budgetSummary.overrunItemCount,
+          paymentCounts: { ...budgetSummary.paymentCounts },
+        },
+        scheduleSummary: {
+          total: scheduleSummary.total,
+          upcoming: scheduleSummary.upcoming,
+          overdue: scheduleSummary.overdue,
+          completed: scheduleSummary.completed,
+        },
+        warrantySummary: {
+          total: warrantySummary.total,
+          expiringSoon: warrantySummary.expiringSoon,
+          expired: warrantySummary.expired,
+          active: warrantySummary.active,
+        },
+        warranties: warranties.map((w) => ({
+          id: w.id,
+          itemName: w.itemName,
+          provider: w.provider,
+          contact: w.contact,
+          startsOn: w.startsOn,
+          endsOn: w.endsOn,
+          note: w.note,
+        })),
+        privacy,
+        changeOrders: sortChangeOrdersForDisplay(changeOrders).map((c) => ({
+          id: c.id,
+          title: c.title,
+          amount: c.amount,
+          status: c.status,
+          decidedOn: c.decidedOn,
+        })),
+        contractSummary: {
+          contractAmount: contractSummary.contractAmount,
+          approvedChangeTotal: contractSummary.approvedChangeTotal,
+          adjustedTotal: contractSummary.adjustedTotal,
+          receivedAmount: contractSummary.receivedAmount,
+          outstanding: contractSummary.outstanding,
+          isOverpaid: contractSummary.isOverpaid,
+        },
+        acceptanceItems: acceptanceItems.map((a) => ({ stageId: a.stageId, passed: a.passed })),
+        scheduleContacts: schedules.map((sc) => ({ workerName: sc.workerName, phone: sc.phone })),
+      })
+      const encoded = encodeShareSnapshot(snapshot)
+      const base = stripShareUrl(window.location.href)
+      return `${base}#${SHARE_HASH_KEY}=${encoded}`
+    },
+    [
+      acceptanceItems,
+      budgetSummary,
+      changeOrders,
+      contractSummary,
+      photos,
+      project,
+      schedules,
+      scheduleSummary,
+      stageSummary,
+      stages,
+      warranties,
+      warrantySummary,
+    ],
+  )
+
+  /** Write the share URL into the address bar; returns an error message on failure. */
+  const applyShareUrl = useCallback((next: string): string | null => {
+    try {
+      window.history.replaceState(null, '', next)
+      return null
+    } catch (err) {
+      return err instanceof Error ? `無法更新網址：${err.message}` : '無法更新網址'
+    }
+  }, [])
 
   const handleGenerateShare = useCallback(async () => {
     setShareFeedback(null)
@@ -229,77 +382,17 @@ export function Dashboard({
       setShareFeedback({ tone: 'error', message: '尚未載入工程資料，無法產生分享連結' })
       return
     }
-    const layout = layoutGantt(project, stages)
-    const snapshot: ShareSnapshot = buildShareSnapshot({
-      project,
-      stages,
-      stageSummary: {
-        total: stageSummary.total,
-        completed: stageSummary.completed,
-        inProgress: stageSummary.inProgress,
-        blocked: stageSummary.blocked,
-        notStarted: stageSummary.notStarted,
-        percentComplete: stageSummary.percentComplete,
-      },
-      gantt: {
-        totalDays: layout.totalDays,
-        days: layout.days,
-        rows: layout.rows,
-      },
-      photos: photos.map((p) => ({
-        id: p.id,
-        kind: p.kind,
-        ...(p.caption !== undefined ? { caption: p.caption } : {}),
-        takenOn: p.takenOn,
-        fileName: p.fileName,
-        mimeType: p.mimeType,
-      })),
-      budgetSummary: {
-        total: budgetSummary.total,
-        totalPlanned: budgetSummary.totalPlanned,
-        totalActual: budgetSummary.totalActual,
-        remaining: budgetSummary.remaining,
-        isOverrun: budgetSummary.isOverrun,
-        totalOverrun: budgetSummary.totalOverrun,
-        overrunItemCount: budgetSummary.overrunItemCount,
-        paymentCounts: { ...budgetSummary.paymentCounts },
-      },
-      scheduleSummary: {
-        total: scheduleSummary.total,
-        upcoming: scheduleSummary.upcoming,
-        overdue: scheduleSummary.overdue,
-        completed: scheduleSummary.completed,
-      },
-      warrantySummary: {
-        total: warrantySummary.total,
-        expiringSoon: warrantySummary.expiringSoon,
-        expired: warrantySummary.expired,
-        active: warrantySummary.active,
-      },
-      warranties: warranties.map((w) => ({
-        id: w.id,
-        itemName: w.itemName,
-        provider: w.provider,
-        contact: w.contact,
-        startsOn: w.startsOn,
-        endsOn: w.endsOn,
-        note: w.note,
-      })),
-    })
-    const encoded = encodeShareSnapshot(snapshot)
-    if (typeof window === 'undefined') {
+    // Every new share starts from the safe default: no address, no contacts.
+    setShareIncludeAddress(false)
+    setShareIncludeContacts(false)
+    const next = buildShareUrlFor({ includeAddress: false, includeContacts: false })
+    if (next === null) {
       setShareFeedback({ tone: 'error', message: '瀏覽器環境不可用，無法產生連結' })
       return
     }
-    const base = stripShareUrl(window.location.href)
-    const next = `${base}#${SHARE_HASH_KEY}=${encoded}`
-    try {
-      window.history.replaceState(null, '', next)
-    } catch (err) {
-      setShareFeedback({
-        tone: 'error',
-        message: err instanceof Error ? `無法更新網址：${err.message}` : '無法更新網址',
-      })
+    const urlError = applyShareUrl(next)
+    if (urlError) {
+      setShareFeedback({ tone: 'error', message: urlError })
       return
     }
     setShareDialogUrl(next)
@@ -317,7 +410,33 @@ export function Dashboard({
             : '連結已產生，但複製失敗',
       })
     }
-  }, [budgets, budgetSummary, clipboard, photos, project, stageSummary, stages, schedules, scheduleSummary, warranties, warrantySummary])
+  }, [applyShareUrl, buildShareUrlFor, clipboard, project])
+
+  /**
+   * Re-generate the link after the sharer ticks / unticks a privacy box. The
+   * link is NOT auto-copied here: the user must press 「複製分享連結」 again so
+   * a link that contains personal data is never copied by a stray click.
+   */
+  const handleSharePrivacyChange = useCallback(
+    (privacy: Required<SharePrivacyOptions>) => {
+      setShareIncludeAddress(privacy.includeAddress)
+      setShareIncludeContacts(privacy.includeContacts)
+      const next = buildShareUrlFor(privacy)
+      if (next === null) return
+      const urlError = applyShareUrl(next)
+      if (urlError) {
+        setShareFeedback({ tone: 'error', message: urlError })
+        return
+      }
+      setShareDialogUrl(next)
+      setShareDialogCopied(false)
+      setShareFeedback({
+        tone: 'success',
+        message: '分享內容已更新，請重新複製連結',
+      })
+    },
+    [applyShareUrl, buildShareUrlFor],
+  )
 
   const handleCloseShareDialog = useCallback(() => {
     setShareDialogOpen(false)
@@ -433,6 +552,15 @@ export function Dashboard({
               <ProjectStatusPill status={project.status} />
               <span aria-hidden="true">·</span>
               <span>{displayDate(project.plannedStart)} ~ {displayDate(project.plannedEnd)}</span>
+              <button
+                type="button"
+                className="btn help-button"
+                onClick={() => setHelpOpen(true)}
+                aria-haspopup="dialog"
+                data-testid="open-help"
+              >
+                使用說明
+              </button>
               <label className="status-switcher">
                 <span>切換狀態：</span>
                 <select
@@ -484,6 +612,24 @@ export function Dashboard({
                 </p>
               </div>
               <div className="intro-bottom">
+                <div className="project-address">
+                  <small>工程地址</small>
+                  <p data-testid="project-address">
+                    {project.address ? project.address : '未填寫（分享連結預設不含地址）'}
+                  </p>
+                  <button
+                    type="button"
+                    className="btn edit-control"
+                    onClick={() => {
+                      setAddressDraft(project.address ?? '')
+                      setAddressError(null)
+                      setAddressOpen(true)
+                    }}
+                    data-testid="edit-address"
+                  >
+                    {project.address ? '編輯工程地址' : '填寫工程地址'}
+                  </button>
+                </div>
                 <div className="project-dates">
                   <small>預計施工期間</small>
                   <p className="numeric">
@@ -709,6 +855,7 @@ export function Dashboard({
                       key={stage.id}
                       stage={stage}
                       index={idx}
+                      acceptance={acceptanceByStage[stage.id] ?? EMPTY_ACCEPTANCE_PROGRESS}
                       onEdit={() => openEditStage(stage)}
                       onDelete={() => openDeleteStage(stage)}
                     />
@@ -743,6 +890,11 @@ export function Dashboard({
           <BudgetSection />
           <PhotoSection />
         </div>
+
+        <PhotoReportSection />
+        <ContractSection />
+        <ChangeOrderSection />
+        <AcceptanceSection />
 
         <section className="section support">
           <ScheduleSection stages={stages} />
@@ -817,7 +969,53 @@ export function Dashboard({
             <dt>保固紀錄</dt>
             <dd data-testid="share-facts-warranty-count">{warrantySummary.total} 筆</dd>
           </div>
+          <div>
+            <dt>變更單</dt>
+            <dd data-testid="share-facts-change-order-count">{changeOrderSummary.total} 筆</dd>
+          </div>
+          <div>
+            <dt>驗收進度</dt>
+            <dd data-testid="share-facts-acceptance">
+              {formatAcceptanceProgress(acceptanceSummary)}
+            </dd>
+          </div>
         </dl>
+        <fieldset className="share-privacy" data-testid="share-privacy">
+          <legend>個人資料（預設不分享）</legend>
+          <label className="form-checkbox">
+            <input
+              type="checkbox"
+              checked={shareIncludeAddress}
+              disabled={!project.address}
+              onChange={(e) =>
+                handleSharePrivacyChange({
+                  includeAddress: e.target.checked,
+                  includeContacts: shareIncludeContacts,
+                })
+              }
+              data-testid="share-include-address"
+            />
+            <span>包含工程地址{project.address ? '' : '（本工程未填寫地址）'}</span>
+          </label>
+          <label className="form-checkbox">
+            <input
+              type="checkbox"
+              checked={shareIncludeContacts}
+              onChange={(e) =>
+                handleSharePrivacyChange({
+                  includeAddress: shareIncludeAddress,
+                  includeContacts: e.target.checked,
+                })
+              }
+              data-testid="share-include-contacts"
+            />
+            <span>包含聯絡方式（工班電話、保固聯絡方式）</span>
+          </label>
+        </fieldset>
+        <p className="record-alert share-dialog-warning" role="note" data-testid="share-dialog-warning">
+          <span className="symbol" aria-hidden="true">⚠</span>
+          連結未加密、無法撤銷：任何拿到連結的人都能看到內容，傳出後無法收回。
+        </p>
         <div className="field share-dialog-url-field">
           <label htmlFor={`${shareDialogTitleId}-url`}>分享連結</label>
           <input
@@ -848,6 +1046,53 @@ export function Dashboard({
             {shareDialogCopied ? '已複製' : '複製分享連結'}
           </button>
         </div>
+      </Modal>
+
+      <HelpDialog open={helpOpen} onClose={() => setHelpOpen(false)} />
+
+      <Modal
+        open={addressOpen}
+        title="工程地址"
+        onClose={() => setAddressOpen(false)}
+        labelledById={addressTitleId}
+      >
+        <form
+          noValidate
+          onSubmit={(e) => {
+            e.preventDefault()
+            const trimmed = addressDraft.trim()
+            updateProject({ address: trimmed.length > 0 ? trimmed : undefined })
+              .then(() => setAddressOpen(false))
+              .catch((err: unknown) =>
+                setAddressError(err instanceof Error ? err.message : '儲存失敗'),
+              )
+          }}
+        >
+          <div className="field">
+            <label htmlFor={`${addressTitleId}-input`}>工程地址（選填）</label>
+            <input
+              id={`${addressTitleId}-input`}
+              type="text"
+              value={addressDraft}
+              onChange={(e) => setAddressDraft(e.target.value)}
+              data-testid="address-input"
+            />
+          </div>
+          <p className="field-hint">
+            地址只存在本機。產生分享連結時預設不放入，需要時在分享對話框勾選「包含工程地址」。清空即刪除地址。
+          </p>
+          {addressError && (
+            <div className="form-feedback" role="alert">{addressError}</div>
+          )}
+          <div className="form-actions">
+            <button type="button" className="btn" onClick={() => setAddressOpen(false)}>
+              取消
+            </button>
+            <button type="submit" className="btn primary" data-testid="address-submit">
+              儲存
+            </button>
+          </div>
+        </form>
       </Modal>
     </>
   )

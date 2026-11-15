@@ -70,11 +70,20 @@ async function renderDashboard() {
   return result
 }
 
+// AC-007: the reminder tests below hard-code 2026-09-22 ~ 2026-09-30 and used
+// to depend on the machine clock. Pin "today" to a fixed local date so the
+// reminder window (reminderOn <= today+7, endOn >= today-1) is deterministic.
+// Only `Date` is faked — real timers keep driving waitFor() and fake-indexeddb.
+const FIXED_NOW = new Date(2026, 8, 20, 9, 0, 0)
+
 afterEach(() => {
   cleanup()
+  vi.useRealTimers()
 })
 
 beforeEach(async () => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(FIXED_NOW)
   await resetIndexedDb()
 })
 
@@ -137,6 +146,10 @@ function fillAndSubmit(
 }
 
 describe('AC-FR005-01 — schedule list, CRUD, validation, reminder', () => {
+  it('AC-007: reminder tests run against a pinned clock, not the machine clock', () => {
+    expect(todayISO()).toBe('2026-09-20')
+  })
+
   it('shows the section header + empty state when no schedules exist', async () => {
     await putProject(seedProject)
     await renderDashboard()
@@ -155,7 +168,7 @@ describe('AC-FR005-01 — schedule list, CRUD, validation, reminder', () => {
     const dialog = await openScheduleForm()
     fillAndSubmit(dialog, {
       workerName: '水電師傅',
-      phone: '0912345678',
+      phone: '0900-000-000',
       stageId: 'stage-water',
       startOn: todayISO(),
       endOn: todayISO(),
