@@ -1,0 +1,63 @@
+# 裝修進度管理平台 — 開發 SOP
+
+## 規格對齊狀態（2026-11-16）
+
+- ✅ `PRD/SPEC.md` v5.0 已重建（含 FR 總表、個資處理、M1～M3、合併清單）。
+- ✅ `GOAL.md` 只定義 M1（AC-001～AC-009）。
+- ⚠️ 本次為文件重建，尚未開始 M1 開發。
+- ⚠️ `.github/workflows/ci.yml` 目前無法解析（最近 3 次 run 皆 0 秒失敗），且在 repo 根目錄執行 npm、呼叫不存在的 `lint` script；M1 AC-007 修正。
+
+## 驗證 SOP
+
+所有指令在 `web/` 執行。下表依 `web/package.json` 的 `scripts` 查證。
+
+```bash
+cd web
+npm ci
+npm run typecheck
+npm test
+npm run build
+```
+
+| 類型 | 指令 | 狀態 | 2026-11-16 實測（Node v26.13.1） |
+|---|---|---|---|
+| 安裝 | `npm ci` | 可用（有 `package-lock.json`） | exit 0 |
+| Typecheck | `npm run typecheck`（`tsc --noEmit`） | 可用 | exit 0 |
+| Unit／元件測試 | `npm test`（`vitest run`） | 可用 | 25 檔／438 tests：435 通過、3 失敗（`Dashboard.schedule.test.tsx` 時間相依）→ exit 非 0 |
+| 單一測試檔 | `npm test -- <檔名關鍵字>`，例如 `npm test -- share` | 可用 | — |
+| Build | `npm run build`（`tsc --noEmit && vite build`） | 可用 | exit 0 |
+| 本機開發 | `npm run dev` | 可用 | 未於本次執行 |
+| 預覽 build | `npm run preview` | 可用 | 未於本次執行 |
+| Lint | `npm run lint` | **尚未配置**（script 不存在；M1 AC-007 新增） | `npm error Missing script: "lint"` |
+| Format | — | **尚未配置** | — |
+| E2E（瀏覽器） | — | **尚未配置**（目前以人工瀏覽器 smoke 補足） | — |
+| Integration | — | **尚未配置** | — |
+
+注意：
+
+- `npm test -- --run` 也可用（`vitest run --run`，舊文件寫法），與 `npm test` 等價。
+- 3 個失敗測試寫死 `2026-09-25`～`2026-09-30` 的提醒日期並依賴系統時鐘，屬已知問題，不是本次文件變更造成；不得以刪除或放寬斷言處理。
+- 尚未配置的指令不得在回報中寫成「通過」。
+
+## 文件與安全檢查（repo 根目錄）
+
+```bash
+git diff --check
+git ls-files | grep -E '(^|/)\.env'          # 應無輸出
+git grep -nE 'ghp_|AKIA|BEGIN (RSA|EC|OPENSSH) PRIVATE KEY' -- . ':!SOP.md' ':!GOAL.md'   # 應無輸出
+```
+
+## 瀏覽器 smoke（人工，M1 Exit gate）
+
+1. `cd web && npm run dev`，開啟顯示的 localhost 網址。
+2. 新增／編輯／刪除（含取消）階段、照片、預算、排程、保固；重新整理確認持久化。
+3. M1 完成後另驗：變更單核准／拒絕、驗收勾選、照片進度回報、分享對話框預設不含地址與聯絡方式。
+4. 產生分享連結，在新分頁開啟，確認唯讀且無編輯控制；竄改 hash 後顯示錯誤而非崩潰。
+5. 視窗寬度 375px 確認無頁面級水平捲軸。
+
+## 故意不做（M1）
+
+- ❌ 真實金流、計費、發票。
+- ❌ 真實雲端照片儲存與同步、後端、登入。
+- ❌ 真實屋主個資與施工照片。
+- ❌ Production deploy（部署目標 Vercel 或 GitHub Pages 待確認）。
