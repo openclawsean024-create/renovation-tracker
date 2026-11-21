@@ -158,6 +158,11 @@ export const PAYMENT_STATUS_TONE: Record<PaymentStatus, string> = {
  *  two decimal places so totals never drift due to floating-point artefacts. */
 export const MAX_BUDGET_DECIMALS = 2
 
+/** Upper bound (exclusive, absolute value) for M1 money amounts — contract,
+ *  received and change-order amounts. Far above any renovation contract, and
+ *  low enough that sums stay finite and exactly representable to the cent. */
+export const MAX_MONEY_AMOUNT = 1_000_000_000_000
+
 /** Rounding helper used before persisting amounts so the stored value never
  *  exceeds two decimal places. */
 export function roundBudgetAmount(value: number): number {
@@ -333,5 +338,118 @@ export interface WarrantyItemEditInput {
   contact?: string
   startsOn: string
   endsOn: string
+  note?: string
+}
+
+/* ──────────────────────────────────────────────────────────────────────── */
+/* ChangeOrder (FR-007) — see PRD/SPEC.md §12.1                             */
+/* ──────────────────────────────────────────────────────────────────────── */
+
+export type ChangeOrderStatus = 'pending' | 'approved' | 'rejected'
+
+export const CHANGE_ORDER_STATUSES: readonly ChangeOrderStatus[] = [
+  'pending',
+  'approved',
+  'rejected',
+] as const
+
+export const CHANGE_ORDER_STATUS_LABELS: Record<ChangeOrderStatus, string> = {
+  pending: '待決定',
+  approved: '已核准',
+  rejected: '已拒絕',
+}
+
+/** A budget change order (追加減). `amount` may be negative (追減) but never 0.
+ *  Only `approved` orders count towards the adjusted contract total. The
+ *  approve / reject decision is a local record kept by the contractor — it is
+ *  NOT an e-signature and carries no legal effect (SPEC §12.1, §17). */
+export interface ChangeOrder {
+  id: string
+  projectId: string
+  stageId?: string
+  title: string
+  amount: number
+  material?: string
+  note?: string
+  /** New orders always start as `pending`. */
+  status: ChangeOrderStatus
+  /** ISO date `YYYY-MM-DD` of the approve / reject decision. */
+  decidedOn?: string
+  /** ISO datetime string. */
+  createdAt: string
+  /** ISO datetime string. */
+  updatedAt: string
+}
+
+/** Payload for `createChangeOrder`. The store assigns `id`, `status`,
+ *  `createdAt`, `updatedAt`. */
+export interface NewChangeOrderInput {
+  projectId: string
+  stageId?: string
+  title: string
+  amount: number
+  material?: string
+  note?: string
+}
+
+/** Payload for `updateChangeOrder` (pending orders only). */
+export interface ChangeOrderEditInput {
+  stageId?: string
+  title: string
+  amount: number
+  material?: string
+  note?: string
+}
+
+/* ──────────────────────────────────────────────────────────────────────── */
+/* Contract & receipts (FR-008) — see PRD/SPEC.md §12.2                     */
+/* ──────────────────────────────────────────────────────────────────────── */
+
+/** Editable contract figures. Mirrors SPEC §12.2 `ContractSummaryInput`. */
+export interface ContractSummaryInput {
+  projectId: string
+  /** >= 0, at most two decimals. */
+  contractAmount: number
+  /** >= 0, at most two decimals. */
+  receivedAmount: number
+}
+
+/** The persisted contract record — one per project, keyed by `projectId`.
+ *  Stored in its own object store, separate from FR-003 cost budgets. */
+export interface ContractRecord extends ContractSummaryInput {
+  /** ISO datetime string. */
+  updatedAt: string
+}
+
+/* ──────────────────────────────────────────────────────────────────────── */
+/* AcceptanceItem (FR-009) — see PRD/SPEC.md §12.3                          */
+/* ──────────────────────────────────────────────────────────────────────── */
+
+export interface AcceptanceItem {
+  id: string
+  projectId: string
+  stageId: string
+  name: string
+  passed: boolean
+  /** ISO date `YYYY-MM-DD`; filled automatically when `passed` turns true. */
+  checkedOn?: string
+  note?: string
+  /** ISO datetime string. */
+  createdAt: string
+  /** ISO datetime string. */
+  updatedAt: string
+}
+
+/** Payload for `createAcceptanceItem`. New items always start un-passed. */
+export interface NewAcceptanceItemInput {
+  projectId: string
+  stageId: string
+  name: string
+  note?: string
+}
+
+/** Payload for `updateAcceptanceItem`. */
+export interface AcceptanceItemEditInput {
+  name: string
   note?: string
 }

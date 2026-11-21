@@ -42,23 +42,24 @@ export function isPaymentStatus(value: string | null | undefined): value is Paym
  *   - `123.45`         → 2
  *   - `123.456`        → 3   (rejected by SPEC §4.5)
  *   - `0.1 + 0.2`      → 18  (rejected — typical FP artefact)
+ *   - `1e-7`           → 7   (rejected — exponent form has no '.')
  */
 export function fractionDigitsOf(value: number): number {
   if (!Number.isFinite(value)) return Number.POSITIVE_INFINITY
   // `Number.prototype.toString()` uses the shortest round-trip representation.
   const s = String(value)
-  const dot = s.indexOf('.')
-  if (dot === -1) return 0
+  // Scientific notation must be handled BEFORE looking for a decimal point:
+  // `1e-7` has no '.' but seven fraction digits.
   const expIdx = s.indexOf('e')
   if (expIdx !== -1) {
-    // Scientific notation — translate to a fraction digit count.
     const mantissa = s.slice(0, expIdx)
     const exp = parseInt(s.slice(expIdx + 1), 10)
-    const mantissaDigits = mantissa.indexOf('.') === -1
-      ? mantissa.length
-      : mantissa.length - mantissa.indexOf('.') - 1
-    return Math.max(0, mantissaDigits - exp)
+    const mantissaDot = mantissa.indexOf('.')
+    const mantissaFraction = mantissaDot === -1 ? 0 : mantissa.length - mantissaDot - 1
+    return Math.max(0, mantissaFraction - exp)
   }
+  const dot = s.indexOf('.')
+  if (dot === -1) return 0
   return s.length - dot - 1
 }
 

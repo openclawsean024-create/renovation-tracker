@@ -8,7 +8,7 @@
 
 import { useMemo } from 'react'
 import { layoutGantt } from '../gantt'
-import { displayDate, monthSpans } from '../dates'
+import { monthSpans } from '../dates'
 import type { Project, Stage, StageStatus } from '../types'
 
 export interface GanttChartProps {
@@ -55,6 +55,22 @@ export function GanttChart({ project, stages, range }: GanttChartProps) {
   const totalDays = range ? range.days : layout.totalDays
   const startDate = range ? range.start : layout.days[0]
 
+  // Hooks must run in the same order on every render, so derive the day list
+  // before the "no date range" early return (react-hooks/rules-of-hooks).
+  const dayList = useMemo(
+    () =>
+      startDate && totalDays > 0
+        ? Array.from({ length: totalDays }, (_, i) => addDays(startDate, i))
+        : [],
+    [startDate, totalDays],
+  )
+  const months = useMemo(() => monthSpans(dayList), [dayList])
+
+  const sortedStages = useMemo(
+    () => [...stages].sort((a, b) => a.plannedStart.localeCompare(b.plannedStart)),
+    [stages],
+  )
+
   if (totalDays <= 0 || !startDate) {
     return (
       <section className="section" aria-labelledby="gantt-heading">
@@ -64,19 +80,7 @@ export function GanttChart({ project, stages, range }: GanttChartProps) {
     )
   }
 
-  const months = useMemo(() => monthSpans(Array.from({ length: totalDays }, (_, i) => addDays(startDate, i))), [startDate, totalDays])
   const labelColWidth = 1 // grid column 1 is the sticky label column
-
-  const sortedStages = useMemo(
-    () => [...stages].sort((a, b) => a.plannedStart.localeCompare(b.plannedStart)),
-    [stages],
-  )
-
-  // For each stage, compute grid column range from day offset within the visible window.
-  const dayList = useMemo(
-    () => Array.from({ length: totalDays }, (_, i) => addDays(startDate, i)),
-    [startDate, totalDays],
-  )
 
   const startMs = new Date(startDate).getTime()
 

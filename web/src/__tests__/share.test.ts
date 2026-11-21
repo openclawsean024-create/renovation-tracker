@@ -316,7 +316,7 @@ describe('buildShareSnapshot + URL helpers', () => {
     // test would fail if any leakage were ever introduced.
     const sourceProject = {
       name: 'P',
-      address: '臺北市',
+      address: '測試市示範路 1 號',
       status: 'in_progress' as const,
       plannedStart: '2026-01-01',
       plannedEnd: '2026-01-10',
@@ -706,5 +706,413 @@ describe('buildShareUrl — produces a clean share URL regardless of current has
     expect(url).not.toMatch(/#.*#/)
     expect(url).not.toContain('old_value')
     expect(url).toMatch(/#share=/)
+  })
+})
+
+// ───────────────────────── M1 / GOAL AC-005 ─────────────────────────
+// Share snapshot v2: new sections round-trip, personal data is opt-in,
+// IndexedDB keys / Blobs never leak, and pre-M1 (v1) links still open.
+
+/** Decode the JSON document carried by a `#share=` fragment. */
+function jsonOf(snapshot: ShareSnapshot): string {
+  return JSON.stringify(snapshot)
+}
+
+function decodeOk(snapshot: unknown): ShareSnapshot {
+  const result = decodeShareHash(
+    `#${SHARE_HASH_KEY}=${encodeShareSnapshot(snapshot as ShareSnapshot)}`,
+  )
+  if (!result.ok) throw new Error(`expected decode to succeed: ${result.error.message}`)
+  return result.snapshot
+}
+
+function decodeErr(snapshot: unknown) {
+  const result = decodeShareHash(
+    `#${SHARE_HASH_KEY}=${encodeShareSnapshot(snapshot as ShareSnapshot)}`,
+  )
+  if (result.ok) throw new Error('expected decode to fail')
+  return result.error
+}
+
+const FAKE_ADDRESS = '測試市示範路 1 號'
+const FAKE_WORKER_PHONE = '0900-000-000'
+const FAKE_WARRANTY_CONTACT = 'demo@example.com'
+
+/** A full M1 input using UUID-like source keys so any leak is detectable. */
+function m1Input(privacy?: { includeAddress?: boolean; includeContacts?: boolean }) {
+  return {
+    project: {
+      name: '示範工程',
+      address: FAKE_ADDRESS,
+      status: 'in_progress' as const,
+      plannedStart: '2026-01-05',
+      plannedEnd: '2026-02-06',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-15T00:00:00.000Z',
+    },
+    stages: [
+      {
+        id: 'idb-stage-key-AAA',
+        name: '拆除',
+        order: 1,
+        status: 'completed' as const,
+        plannedStart: '2026-01-05',
+        plannedEnd: '2026-01-09',
+        actualStart: '2026-01-05',
+        actualEnd: '2026-01-09',
+      },
+      {
+        id: 'idb-stage-key-BBB',
+        name: '水電',
+        order: 2,
+        status: 'in_progress' as const,
+        plannedStart: '2026-01-12',
+        plannedEnd: '2026-01-23',
+      },
+      {
+        id: 'idb-stage-key-CCC',
+        name: '木作',
+        order: 3,
+        status: 'not_started' as const,
+        plannedStart: '2026-01-26',
+        plannedEnd: '2026-02-06',
+      },
+    ],
+    stageSummary: { total: 3, completed: 1, inProgress: 1, blocked: 0, notStarted: 1, percentComplete: 33 },
+    gantt: { totalDays: 33, days: ['2026-01-05'], rows: [] },
+    photos: [
+      { id: 'idb-photo-key-1', kind: 'before' as const, takenOn: '2026-01-05', fileName: 'a.png', mimeType: 'image/png', stageId: 'idb-stage-key-AAA', createdAt: '2026-01-05T01:00:00.000Z' },
+      { id: 'idb-photo-key-2', kind: 'progress' as const, takenOn: '2026-01-08', fileName: 'b.png', mimeType: 'image/png', stageId: 'idb-stage-key-AAA', createdAt: '2026-01-08T01:00:00.000Z' },
+      { id: 'idb-photo-key-3', kind: 'progress' as const, takenOn: '2026-01-14', fileName: 'c.png', mimeType: 'image/png', stageId: 'idb-stage-key-BBB', createdAt: '2026-01-14T01:00:00.000Z' },
+      { id: 'idb-photo-key-4', kind: 'progress' as const, takenOn: '2026-01-03', fileName: 'd.png', mimeType: 'image/png', createdAt: '2026-01-03T01:00:00.000Z' },
+    ],
+    budgetSummary: {
+      total: 0,
+      totalPlanned: 0,
+      totalActual: 0,
+      remaining: 0,
+      isOverrun: false,
+      totalOverrun: 0,
+      overrunItemCount: 0,
+      paymentCounts: { unpaid: 0, partial: 0, paid: 0 },
+    },
+    warranties: [
+      {
+        id: 'idb-warranty-key-1',
+        itemName: '示範保固項目',
+        provider: '示範廠商',
+        contact: FAKE_WARRANTY_CONTACT,
+        startsOn: '2026-01-01',
+        endsOn: '2027-01-01',
+      },
+    ],
+    generatedAt: '2026-01-20T02:00:00.000Z',
+    changeOrders: [
+      { id: 'idb-change-key-1', title: '示範追加：增加插座', amount: 12000, status: 'approved' as const, decidedOn: '2026-01-18', material: '示範材料', note: '示範內部備註' },
+      { id: 'idb-change-key-2', title: '示範追減：取消層板', amount: -3000.5, status: 'pending' as const },
+      { id: 'idb-change-key-3', title: '示範追加：更換地板', amount: 30000, status: 'rejected' as const, decidedOn: '2026-01-19' },
+    ],
+    contractSummary: {
+      contractAmount: 1000000,
+      approvedChangeTotal: 12000,
+      adjustedTotal: 1012000,
+      receivedAmount: 400000,
+      outstanding: 612000,
+      isOverpaid: false,
+    },
+    acceptanceItems: [
+      { stageId: 'idb-stage-key-AAA', passed: true },
+      { stageId: 'idb-stage-key-AAA', passed: false },
+      { stageId: 'idb-stage-key-BBB', passed: false },
+    ],
+    scheduleContacts: [
+      { workerName: '示範水電師傅', phone: FAKE_WORKER_PHONE },
+      { workerName: '示範木工師傅' },
+    ],
+    ...(privacy ? { privacy } : {}),
+  }
+}
+
+describe('AC-005 share snapshot v2 — new sections', () => {
+  it('AC-005: the current snapshot version is 2', () => {
+    expect(SHARE_SNAPSHOT_VERSION).toBe(2)
+    expect(buildShareSnapshot(m1Input()).version).toBe(2)
+  })
+
+  it('AC-005: change orders carry title, amount and status under snapshot-local ids', () => {
+    const snapshot = buildShareSnapshot(m1Input())
+    expect(snapshot.changeOrders).toEqual([
+      { id: 'change-1', title: '示範追加：增加插座', amount: 12000, status: 'approved', decidedOn: '2026-01-18' },
+      { id: 'change-2', title: '示範追減：取消層板', amount: -3000.5, status: 'pending' },
+      { id: 'change-3', title: '示範追加：更換地板', amount: 30000, status: 'rejected', decidedOn: '2026-01-19' },
+    ])
+  })
+
+  it('AC-005: change order material and note stay on the device', () => {
+    const json = jsonOf(buildShareSnapshot(m1Input({ includeAddress: true, includeContacts: true })))
+    expect(json).not.toContain('示範材料')
+    expect(json).not.toContain('示範內部備註')
+  })
+
+  it('AC-005: the contract & receipts summary is included', () => {
+    expect(buildShareSnapshot(m1Input()).contractSummary).toEqual({
+      contractAmount: 1000000,
+      approvedChangeTotal: 12000,
+      adjustedTotal: 1012000,
+      receivedAmount: 400000,
+      outstanding: 612000,
+      isOverpaid: false,
+    })
+  })
+
+  it('AC-005: acceptance progress is reported overall and per stage, with the completed-stage warning', () => {
+    expect(buildShareSnapshot(m1Input()).acceptanceSummary).toEqual({
+      total: 3,
+      passed: 1,
+      stages: [
+        { stageId: 'stage-1', total: 2, passed: 1, hasWarning: true },
+        { stageId: 'stage-2', total: 1, passed: 0, hasWarning: false },
+      ],
+    })
+  })
+
+  it('AC-005: the photo report gives per-stage photo count and latest shooting date', () => {
+    expect(buildShareSnapshot(m1Input()).photoReport).toEqual({
+      stages: [
+        { stageId: 'stage-1', count: 2, latestTakenOn: '2026-01-08' },
+        { stageId: 'stage-2', count: 1, latestTakenOn: '2026-01-14' },
+      ],
+      unassigned: { count: 1, latestTakenOn: '2026-01-03' },
+    })
+  })
+
+  it('AC-005: every new section survives an encode → decode round-trip', () => {
+    for (const privacy of [
+      undefined,
+      { includeAddress: true },
+      { includeContacts: true },
+      { includeAddress: true, includeContacts: true },
+    ]) {
+      const snapshot = buildShareSnapshot(m1Input(privacy))
+      expect(decodeOk(snapshot)).toEqual(snapshot)
+    }
+  })
+
+  it('AC-005: an empty project still produces well-formed (empty) v2 sections', () => {
+    const snapshot = buildShareSnapshot({
+      project: {
+        name: '示範工程',
+        status: 'planning',
+        plannedStart: '2026-01-01',
+        plannedEnd: '2026-01-10',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      },
+      stages: [],
+      stageSummary: { total: 0, completed: 0, inProgress: 0, blocked: 0, notStarted: 0, percentComplete: 0 },
+      gantt: { totalDays: 10, days: [], rows: [] },
+      photos: [],
+      budgetSummary: {
+        total: 0,
+        totalPlanned: 0,
+        totalActual: 0,
+        remaining: 0,
+        isOverrun: false,
+        totalOverrun: 0,
+        overrunItemCount: 0,
+        paymentCounts: { unpaid: 0, partial: 0, paid: 0 },
+      },
+      generatedAt: '2026-01-20T02:00:00.000Z',
+    })
+    expect(snapshot.changeOrders).toEqual([])
+    expect(snapshot.acceptanceSummary).toEqual({ total: 0, passed: 0, stages: [] })
+    expect(snapshot.photoReport).toEqual({ stages: [], unassigned: { count: 0 } })
+    expect(snapshot.contractSummary).toBeUndefined()
+    expect(snapshot.privacy).toEqual({ includesAddress: false, includesContacts: false })
+    expect(decodeOk(snapshot)).toEqual(snapshot)
+  })
+})
+
+describe('AC-005 share snapshot v2 — personal data is opt-in', () => {
+  it('AC-005: by default the address, worker phones and warranty contacts are NOT in the snapshot', () => {
+    const snapshot = buildShareSnapshot(m1Input())
+    expect(snapshot.project.address).toBeUndefined()
+    expect('address' in snapshot.project).toBe(false)
+    expect(snapshot.warranties).toHaveLength(1)
+    expect(snapshot.warranties![0]!.contact).toBeUndefined()
+    expect('contact' in snapshot.warranties![0]!).toBe(false)
+    expect(snapshot.scheduleContacts).toBeUndefined()
+    expect(snapshot.privacy).toEqual({ includesAddress: false, includesContacts: false })
+  })
+
+  it('AC-005: by default none of the personal strings appear anywhere in the encoded URL payload', () => {
+    const snapshot = buildShareSnapshot(m1Input())
+    const json = jsonOf(snapshot)
+    expect(json).not.toContain(FAKE_ADDRESS)
+    expect(json).not.toContain(FAKE_WORKER_PHONE)
+    expect(json).not.toContain(FAKE_WARRANTY_CONTACT)
+    expect(json).not.toContain('示範水電師傅')
+    // …and the same holds after the URL round-trip.
+    const decoded = jsonOf(decodeOk(snapshot))
+    expect(decoded).not.toContain(FAKE_ADDRESS)
+    expect(decoded).not.toContain(FAKE_WORKER_PHONE)
+    expect(decoded).not.toContain(FAKE_WARRANTY_CONTACT)
+  })
+
+  it('AC-005: explicit false behaves exactly like the default', () => {
+    expect(buildShareSnapshot(m1Input({ includeAddress: false, includeContacts: false }))).toEqual(
+      buildShareSnapshot(m1Input()),
+    )
+  })
+
+  it('AC-005: ticking 「包含工程地址」 adds only the address', () => {
+    const snapshot = buildShareSnapshot(m1Input({ includeAddress: true }))
+    expect(snapshot.project.address).toBe(FAKE_ADDRESS)
+    expect(snapshot.privacy).toEqual({ includesAddress: true, includesContacts: false })
+    const json = jsonOf(snapshot)
+    expect(json).not.toContain(FAKE_WORKER_PHONE)
+    expect(json).not.toContain(FAKE_WARRANTY_CONTACT)
+    expect(snapshot.scheduleContacts).toBeUndefined()
+  })
+
+  it('AC-005: ticking 「包含聯絡方式」 adds worker phones and warranty contacts, not the address', () => {
+    const snapshot = buildShareSnapshot(m1Input({ includeContacts: true }))
+    expect(snapshot.project.address).toBeUndefined()
+    expect(snapshot.warranties![0]!.contact).toBe(FAKE_WARRANTY_CONTACT)
+    // Only workers that actually have a phone number are listed.
+    expect(snapshot.scheduleContacts).toEqual([
+      { id: 'schedule-1', workerName: '示範水電師傅', phone: FAKE_WORKER_PHONE },
+    ])
+    expect(snapshot.privacy).toEqual({ includesAddress: false, includesContacts: true })
+    expect(jsonOf(snapshot)).not.toContain(FAKE_ADDRESS)
+  })
+
+  it('AC-005: ticking both includes both', () => {
+    const snapshot = buildShareSnapshot(m1Input({ includeAddress: true, includeContacts: true }))
+    expect(snapshot.project.address).toBe(FAKE_ADDRESS)
+    expect(snapshot.warranties![0]!.contact).toBe(FAKE_WARRANTY_CONTACT)
+    expect(snapshot.scheduleContacts).toHaveLength(1)
+    expect(snapshot.privacy).toEqual({ includesAddress: true, includesContacts: true })
+  })
+
+  it('AC-005: includesAddress stays false when the project has no address to share', () => {
+    const input = m1Input({ includeAddress: true })
+    const { address: _address, ...projectWithoutAddress } = input.project
+    void _address
+    const snapshot = buildShareSnapshot({ ...input, project: projectWithoutAddress })
+    expect(snapshot.project.address).toBeUndefined()
+    expect(snapshot.privacy?.includesAddress).toBe(false)
+  })
+})
+
+describe('AC-005 share snapshot v2 — no IndexedDB key or Blob leaks', () => {
+  it('AC-005: no source IndexedDB key appears in the payload, with or without opt-in', () => {
+    for (const privacy of [undefined, { includeAddress: true, includeContacts: true }]) {
+      const json = jsonOf(buildShareSnapshot(m1Input(privacy)))
+      expect(json).not.toContain('idb-stage-key')
+      expect(json).not.toContain('idb-photo-key')
+      expect(json).not.toContain('idb-warranty-key')
+      expect(json).not.toContain('idb-change-key')
+    }
+  })
+
+  it('AC-005: photo stage links and createdAt are used for the report but never written out', () => {
+    const snapshot = buildShareSnapshot(m1Input())
+    for (const photo of snapshot.photos) {
+      expect(Object.keys(photo).sort()).toEqual(['fileName', 'id', 'kind', 'mimeType', 'takenOn'])
+      expect(photo.id).toMatch(/^photo-\d+$/)
+    }
+  })
+
+  it('AC-005: the payload contains no Blob / binary image data', () => {
+    const input = m1Input()
+    const withBlob = {
+      ...input,
+      photos: input.photos.map((p) => ({
+        ...p,
+        blob: new Blob([new Uint8Array([1, 2, 3])], { type: 'image/png' }),
+      })),
+    }
+    const snapshot = buildShareSnapshot(withBlob)
+    const json = jsonOf(snapshot)
+    expect(json).not.toMatch(/blob/i)
+    expect(json).not.toContain('data:image')
+    for (const photo of snapshot.photos) {
+      expect('blob' in photo).toBe(false)
+    }
+  })
+
+  it('AC-005: acceptance items of a stage outside the snapshot count overall but get no per-stage key', () => {
+    const input = m1Input()
+    const snapshot = buildShareSnapshot({
+      ...input,
+      acceptanceItems: [...input.acceptanceItems, { stageId: 'idb-stage-key-GONE', passed: true }],
+    })
+    expect(snapshot.acceptanceSummary?.total).toBe(4)
+    expect(snapshot.acceptanceSummary?.passed).toBe(2)
+    expect(snapshot.acceptanceSummary?.stages.map((s) => s.stageId)).toEqual(['stage-1', 'stage-2'])
+    expect(jsonOf(snapshot)).not.toContain('idb-stage-key-GONE')
+  })
+})
+
+describe('AC-005 share snapshot — older and malformed links', () => {
+  /** What a pre-M1 link looked like: version 1, none of the v2 sections. */
+  function legacyV1(): Record<string, unknown> {
+    const { privacy, changeOrders, contractSummary, acceptanceSummary, photoReport, ...rest } =
+      buildShareSnapshot(m1Input())
+    void privacy
+    void changeOrders
+    void contractSummary
+    void acceptanceSummary
+    void photoReport
+    return { ...rest, version: 1 }
+  }
+
+  it('AC-005: an existing version 1 hash still decodes', () => {
+    const decoded = decodeOk(legacyV1())
+    expect(decoded.version).toBe(1)
+    expect(decoded.project.name).toBe('示範工程')
+    expect(decoded.stages).toHaveLength(3)
+    expect(decoded.warranties).toHaveLength(1)
+    // v1 links simply have none of the M1 sections.
+    expect(decoded.privacy).toBeUndefined()
+    expect(decoded.changeOrders).toBeUndefined()
+    expect(decoded.contractSummary).toBeUndefined()
+    expect(decoded.acceptanceSummary).toBeUndefined()
+    expect(decoded.photoReport).toBeUndefined()
+    expect(decoded.scheduleContacts).toBeUndefined()
+  })
+
+  it('AC-005: a version 1 link that already carried an address / contact still opens', () => {
+    const legacy = legacyV1()
+    ;(legacy.project as Record<string, unknown>).address = FAKE_ADDRESS
+    ;(legacy.warranties as Record<string, unknown>[])[0]!.contact = FAKE_WARRANTY_CONTACT
+    const decoded = decodeOk(legacy)
+    expect(decoded.version).toBe(1)
+    expect(decoded.project.address).toBe(FAKE_ADDRESS)
+    expect(decoded.warranties![0]!.contact).toBe(FAKE_WARRANTY_CONTACT)
+  })
+
+  it('AC-005: a future version is rejected with an understandable error instead of crashing', () => {
+    const error = decodeErr({ ...buildShareSnapshot(m1Input()), version: 3 })
+    expect(error.code).toBe('unknown-version')
+    expect(error.message).toBe('不支援的分享版本：3')
+  })
+
+  it.each([
+    ['changeOrders is not a list', { changeOrders: 'nope' }],
+    ['a change order uses a raw key as id', { changeOrders: [{ id: 'idb-change-key-1', title: 't', amount: 1, status: 'pending' }] }],
+    ['a change order has an unknown status', { changeOrders: [{ id: 'change-1', title: 't', amount: 1, status: 'signed' }] }],
+    ['a change order amount is not a number', { changeOrders: [{ id: 'change-1', title: 't', amount: '1', status: 'pending' }] }],
+    ['contractSummary lacks a field', { contractSummary: { contractAmount: 1 } }],
+    ['acceptanceSummary is malformed', { acceptanceSummary: { total: 1, passed: 0, stages: [{ stageId: 'idb-stage-key-AAA', total: 1, passed: 0, hasWarning: false }] } }],
+    ['photoReport is malformed', { photoReport: { stages: [{ stageId: 'stage-1', count: -1 }], unassigned: { count: 0 } } }],
+    ['photoReport has a bad date', { photoReport: { stages: [], unassigned: { count: 1, latestTakenOn: 'yesterday' } } }],
+    ['privacy is malformed', { privacy: { includesAddress: 'yes', includesContacts: false } }],
+    ['scheduleContacts is malformed', { scheduleContacts: [{ id: 'schedule-1', workerName: 1, phone: '0900-000-000' }] }],
+  ])('AC-005: a tampered link is rejected with a shape error when %s', (_label, patch) => {
+    const error = decodeErr({ ...buildShareSnapshot(m1Input()), ...patch })
+    expect(error.code).toBe('shape')
+    expect(error.message.length).toBeGreaterThan(0)
   })
 })

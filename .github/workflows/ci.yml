@@ -1,36 +1,72 @@
 name: CI
+
 on:
-  push: { branches: [main] }
+  push:
+    branches: [main]
+  pull_request:
+
+# The npm project lives in web/ (see AGENTS.md §2), so every run step executes
+# there and the npm cache is keyed on web/package-lock.json.
+defaults:
+  run:
+    working-directory: web
+
 jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '22', cache: 'npm' }
-      - run: npm ci && npm run typecheck && npm run lint
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '22', cache: 'npm' }
-      - run: npm ci && npm test
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm test
+
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '22', cache: 'npm' }
-      - run: npm ci && npm run build
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run build
+
+  # Deploy target is still unconfirmed (Vercel vs GitHub Pages — see STATUS.md
+  # 「風險與待確認」). The job definition is kept as it was, but stays disabled
+  # until Sean confirms the target: fixing the workflow syntax must not start
+  # a production deploy that has never run before.
   deploy:
     needs: [lint, test, build]
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: ${{ false }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '22', cache: 'npm' }
-      - run: npm ci && npm run build
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run build
       - uses: peaceiris/actions-gh-pages@v4
-        with: { github_token: ${{ secrets.GITHUB_TOKEN }}, publish_dir: ./web/dist }
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./web/dist

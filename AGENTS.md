@@ -1,56 +1,79 @@
-# AGENTS.md — Renovation Tracker 開發合約
+# AGENTS.md — 裝修進度管理平台（renovation-tracker）開發合約
 
-本檔是 `renovation-tracker` 專案的開發流程與驗收規則。workspace 層級的通用規則仍以父層 [`../AGENTS.md`](../AGENTS.md) 為準；本檔補充本專案特有的執行方式。
+本檔是 `renovation-tracker` 的開發流程與驗收規則。workspace 層級的通用規則仍以父層 `../AGENTS.md` 為準；本檔補充本專案特有的規則。
 
-## Single Source of Truth
+## 1. 權威文件
 
-- `PRD/SPEC.md` 是產品範圍、功能需求與 acceptance criteria 的唯一規格來源。
-- `PRD/FR-00x-MINIMAX-TASK.md` 是交給 MiniMax 的單一 milestone implementation brief。
-- UI 改動必須先遵循 `PRD/UI-SPEC.md`；MiniMax 不得自行發明超出該規格的視覺語言，且 Codex 必須做固定 viewport 的瀏覽器驗收。
-- `prototype/ui-polish-preview-v*.html` 是 UI review artifact；它必須使用真實 seed data、自包含且不修改正式 React。原型定稿前不得外派 MiniMax 實作。
-- 任何程式碼改動都必須能對應到 `SPEC.md` 的 FR/AC 或明確的工程驗收問題。
+| 文件 | 用途 |
+|---|---|
+| `PRD/SPEC.md` | 產品範圍、FR、非功能需求、個資處理、里程碑與合併清單的 single source of truth |
+| `GOAL.md` | 目前里程碑（M1）的 Objective、AC、Out of scope、Exit gate |
+| `SOP.md` | 實際可執行的驗證指令 |
+| `STATUS.md` | 目前狀態、FR 對照、Notion 對應 |
+| `PRD/UI-SPEC.md` | UI 視覺語言與響應式規格；UI 改動必須先遵循 |
+| `PRD/FR-00x-MINIMAX-TASK.md`、`PRD/*-REPORT.md` | 歷次實作 brief 與驗收報告（歷史紀錄，不是現行規格） |
+| `prototype/ui-polish-preview-v*.html` | UI review artifact；自包含、不修改正式 React |
 
-## 代理協作流程
+任何程式碼改動都必須能對應到 `PRD/SPEC.md` 的 FR 或 `GOAL.md` 的 AC。規格要變更時，先改 SPEC／GOAL，再改程式。
 
-每個 milestone 必須依序完成，不可跳過獨立驗收。UI milestone 額外遵循第 1–3 步的 design gate：
+## 2. 專案結構
 
-1. **Planner / Codex**：先把 PRD 補成可執行規格；UI 工作必須先建立或更新 `PRD/UI-SPEC.md`，明確寫出視覺語言、資訊架構、響應式、accessibility、狀態與 acceptance criteria。
-2. **Design prototype / Astra-6**：使用 `gpt-6-astra` 產出 `prototype/ui-polish-preview-v*.html`。原型須以真實 seed data 為基礎、單檔自包含、無 CDN/fetch、不得帶入未授權品牌或假數據；Codex 先做靜態與瀏覽器檢查。
-3. **Human design gate / Sean**：把 HTML 原型交給 Sean 在瀏覽器檢視。Sean 明確確認前，不能進入正式 React coding、不能外派 MiniMax、不能 commit/push/deploy。需要修改時回派 Astra 或由 Planner 更新 UI-SPEC，再重做原型檢查。
-4. **Developer / MiniMax**：只有 design gate 通過後，才依照 `PRD/UI-SPEC.md`、已確認的 prototype 與當前 `FR-00x-MINIMAX-TASK.md` 實作正式 React；不得擴大範圍。
-5. **Deterministic checks / Codex**：Codex 不採信「測試已通過」的口頭回報，必須在 host workspace 重新執行 typecheck、test、build 與必要的 browser smoke test。
-6. **QA / Codex**：逐條對照 acceptance criteria，檢查資料持久化、空狀態、錯誤狀態、readonly/share 邊界與 accessibility。
-7. **回派修正**：若任何檢查失敗，Codex 必須提供可重現的 command、實際輸出、exit code 與具體修正要求；MiniMax 修正後重新完整驗收。
-8. **Integrator**：只有當當前 milestone 通過獨立驗收，才可進入下一個 milestone；完成全部 FR/UI 工作後才可 commit、push 與 deploy。
+```text
+renovation-tracker/
+├── AGENTS.md / GOAL.md / SOP.md / STATUS.md / README.md
+├── PRD/                     # SPEC、UI-SPEC、CHANGELOG、歷次 MiniMax brief 與驗收報告
+├── prototype/               # UI 原型 HTML（review 用）
+├── .github/workflows/ci.yml # CI：lint／typecheck、test、build（deploy job 停用，部署目標待確認）
+├── docs/USER-GUIDE.md       # 業者端與屋主端使用說明
+└── web/                     # 唯一的應用程式（npm 專案根目錄）
+    ├── index.html
+    ├── renovation-tracker.html   # 自包含互動預覽頁（非 React 入口）
+    ├── eslint.config.js          # ESLint v9 flat config（`npm run lint`）
+    ├── vite.config.ts            # 含 vitest 設定（jsdom、src/test/setup.ts）
+    └── src/
+        ├── main.tsx / App.tsx    # App → AppShell（決定編輯模式或 #share= 唯讀模式）
+        ├── components/           # Dashboard、各 Section／Form／Row、GanttChart、ReadOnlyView、Modal 等
+        ├── store.tsx             # DashboardProvider：React context + IndexedDB 寫入
+        ├── db.ts                 # IndexedDB（DB `renovation-tracker` schema v6）
+        ├── types.ts              # Domain types 與 enum 常數
+        ├── seed.ts               # 首次開啟的示範工程（固定參考日 2026-01-05）
+        ├── validation.ts / budget.ts / photos.ts / schedule.ts / warranty.ts / status.ts
+        ├── changeOrders.ts / contract.ts / acceptance.ts / photoReport.ts   # M1（FR-007～FR-010）
+        ├── dates.ts / gantt.ts   # 本地日期與甘特計算
+        ├── share.ts              # 唯讀分享 snapshot encode/decode（version 2，相容 version 1）
+        └── __tests__/            # Vitest + Testing Library 測試（39 檔）
+```
 
-## 驗收證據
+## 3. 技術棧
 
-- Agent 自己聲稱通過不算證據；必須留下 command output 與 exit code。
-- 最低驗證命令（在 `web/` 執行）：
+- Vite 5、React 18、TypeScript 5（strict）、純 CSS（`src/index.css` design tokens）。
+- 儲存：IndexedDB（照片 Blob 也存在 IndexedDB），無後端。
+- 測試：Vitest 2、@testing-library/react、jsdom、fake-indexeddb。
+- `react-router-dom` 已安裝但目前未使用路由；不得為了形式新增路由。
+- Node：CI 設定為 22；本機最近一次驗證使用 v26.13.1。
 
-  ```bash
-  npm install
-  npm run typecheck
-  npm test -- --run
-  npm run build
-  ```
+## 4. 開發規則
 
-- UI 需求除自動化測試外，必須做瀏覽器 smoke test；至少涵蓋建立、編輯、刪除/取消、重新整理後持久化，以及 readonly share 的權限邊界。
-- 不可刪除或跳過 failing test 來讓 CI 變綠；diagnostic test 完成後必須移除。
+1. **只用假資料**：seed、測試、文件、截圖與 PR 內容只能使用明顯的假資料，例如 `示範屋主`、`測試市示範路 1 號`、`0900-000-000`、`demo@example.com`。不得放入真實屋主姓名、地址、電話、施工照片或客戶資料。
+2. **不得提交憑證**：不得 commit credentials、tokens、`.env`、`.env.local`、connection strings 或部署平台本機目錄。發現疑似憑證時停止並回報檔案路徑，不得複製內容。
+3. **測試不可為了通過而刪改斷言**：不得刪除、`skip`、`only` 或放寬既有斷言讓測試變綠；時間相依測試要用 `vi.useFakeTimers()`／`vi.setSystemTime()` 或注入 today 修正。診斷用的暫時測試完成後要移除。
+4. **local-first 邊界**：未經 SPEC 明確授權，不新增 backend、auth、雲端同步、R2／S3、金流或第三方資料服務。M1 一律 mock 或本機。
+5. **分享邊界**：分享頁必須唯讀，不得洩漏 IndexedDB key、原始 record id 或照片 Blob；地址與聯絡方式預設不得放入分享 URL（GOAL AC-005）。
+6. **併入規則**：decoration-tracker 只讀；要搬的功能依 `PRD/SPEC.md` §13 以本 repo 的 IndexedDB／store／validation 慣例重寫，不複製 localStorage 實作或其 seed 人名。
+7. **需人審的變更**：DB schema migration、auth、payments、secrets、infra 刪除、部署目標變更，必須取得 risk approval 與 Sean 人審。
+8. **UI 變更**：先更新 `PRD/UI-SPEC.md`，必要時先做 prototype 給 Sean 確認，再實作 React。
 
-## Git、push 與 deployment
+## 5. 代理協作流程
 
-- commit message 使用 `<type>(scope): <FR/AC 或說明>`，例如 `feat(mvp): complete FR-001 through FR-006`。
-- 不在 agent session 內 merge PR、刪 branch、修改 branch protection 或 rotate secrets。
-- 只有在 Sean 明確要求、milestone 已完成獨立驗收、部署目標已確認時，才可執行 Vercel deploy。
-- 本專案 Vercel 設定：Root Directory=`web`、Framework=`Vite`、Build Command=`npm run build`、Output Directory=`dist`、Install Command=`npm install`。
-- 每次 push 後必須確認 local HEAD 與 GitHub `main` 相同；每次 production deploy 必須把該 commit SHA 寫入 deployment metadata。
-- 每次 GitHub push 或 Vercel deploy 都必須同步更新 canonical Notion Project DB：`進度`／HEAD SHA、GitHub URL、Vercel URL、狀態與 Next Action 必須反映同一個 release；Notion 同步完成並驗證前，該 release 不算完成。
-- Release 順序固定為：獨立驗收 → commit → push → deploy → 更新 Notion → 驗證 GitHub／Vercel／Notion SHA；若 Notion connector 不可用，必須標記 release pending，不得開始下一個 milestone。
-- 不得 commit credentials、tokens、`.env`、`.env.local` 或 connection strings。Vercel 本機目錄與環境檔必須保持 ignored。
+1. Planner：先把需求補進 SPEC／GOAL，寫清楚 AC 與驗證方式。
+2. Developer：只改該 AC 所需的 `web/` 程式、測試與必要設定。
+3. Deterministic checks：獨立重跑 `SOP.md` 的指令，不採信口頭回報；保留 command、輸出摘要與 exit code。
+4. QA：逐條對照 AC，檢查持久化、空狀態、錯誤狀態、唯讀分享邊界與 accessibility，並做瀏覽器 smoke。
+5. 失敗時回派：提供可重現的 command、實際輸出、exit code 與修正要求。
 
-## 目前產品邊界
+## 6. Git、push 與部署
 
-- MVP 採 local-first IndexedDB；未經 SPEC 明確授權，不新增 backend、auth、cloud sync、R2/S3 或第三方資料服務。
-- Share 頁面必須 readonly，不能洩漏內部 IndexedDB key、原始 record id 或 photo blob。
-- 任何涉及 DB migration、auth、payments、secrets 或 infra deletion 的改動，都必須額外取得 risk approval 與人審。
+- commit message：`<type>(scope): <FR/AC 或說明>`，例如 `feat(change-order): AC-001 add change orders`。
+- 不在 agent session 內 merge PR、刪 branch、`git push --force`、修改 branch protection 或 rotate secrets；不直接 push 到 `main`。
+- 部署目標待確認：舊版 AGENTS 記載 Vercel（Root `web`、Build `npm run build`、Output `dist`），但 `.github/workflows/ci.yml` 是 GitHub Pages deploy。確認前不得執行任何 production deploy。
+- 每次 release（push 到 `main` 或部署）必須同步 Notion「可產品化商品」中本產品（裝修進度管理平台）的狀態；未同步前該 release 不算完成。

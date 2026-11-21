@@ -1,7 +1,8 @@
 // Centralised application store backed by IndexedDB. Single project / many
 // stages for FR-001, plus photo records (Blob) for FR-002, budget items for
-// FR-003, and schedule items for FR-005. Exposes a small action surface via
-// the useDashboard hook.
+// FR-003, schedule items for FR-005, warranties for FR-006 and — since M1 —
+// change orders (FR-007), contract figures (FR-008) and per-stage acceptance
+// items (FR-009). Exposes a small action surface via the useDashboard hook.
 
 import {
   createContext,
@@ -13,24 +14,37 @@ import {
   type ReactNode,
 } from 'react'
 import {
+  deleteAcceptanceItem as dbDeleteAcceptanceItem,
   deleteBudget as dbDeleteBudget,
+  deleteChangeOrder as dbDeleteChangeOrder,
   deletePhoto as dbDeletePhoto,
   deleteSchedule as dbDeleteSchedule,
-  deleteStage as dbDeleteStage,
   deleteStagesByProject,
   deleteWarranty as dbDeleteWarranty,
+  getAllAcceptanceItems,
   getAllBudgets,
+  getAllChangeOrders,
+  getAllContracts,
   getAllPhotos,
   getAllProjects,
   getAllSchedules,
   getAllStages,
   getAllWarranties,
   putBudget,
+  putChangeOrder,
+  putContract,
   putPhoto,
-  putProject,
   putSchedule,
   putStage,
   putWarranty,
+  RecordConflictError,
+  STORE_ACCEPTANCE_ITEMS,
+  STORE_CHANGE_ORDERS,
+  STORE_PROJECTS,
+  deleteStageWithAcceptance,
+  mutateRecord,
+  putAcceptanceItemIfStageExists,
+  seedIfEmpty,
 } from './db'
 import { buildSeed, SEED_STAGE_NAMES } from './seed'
 import { compareStageOrder } from './status'
@@ -44,7 +58,19 @@ import {
   validateStageInput,
   type ValidationError,
 } from './validation'
-import { todayISO } from './dates'
+import { formatLocalISO, todayISO } from './dates'
+import {
+  canEditChangeOrder,
+  decideChangeOrder as applyChangeOrderDecision,
+  validateChangeOrderInput,
+  validateNewChangeOrderInput,
+} from './changeOrders'
+import { validateContractInput } from './contract'
+import {
+  toggleAcceptancePassed,
+  validateAcceptanceInput,
+  validateNewAcceptanceInput,
+} from './acceptance'
 import { validatePhotoInput } from './photos'
 import { validateBudgetInput, validateNewBudgetInput } from './budget'
 import {
@@ -53,9 +79,16 @@ import {
   validateWarrantyEditInput,
 } from './warranty'
 import type {
+  AcceptanceItem,
+  AcceptanceItemEditInput,
   BudgetItem,
   BudgetItemEditInput,
+  ChangeOrder,
+  ChangeOrderEditInput,
+  ContractRecord,
+  NewAcceptanceItemInput,
   NewBudgetItemInput,
+  NewChangeOrderInput,
   NewPhotoInput,
   NewScheduleItemInput,
   NewStageInput,
@@ -83,6 +116,12 @@ export interface DashboardState {
   budgets: BudgetItem[]
   schedules: ScheduleItem[]
   warranties: WarrantyRecord[]
+  /** FR-007 change orders (追加減). */
+  changeOrders: ChangeOrder[]
+  /** FR-008 contract figures; `null` until the user saves them once. */
+  contract: ContractRecord | null
+  /** FR-009 per-stage acceptance items. */
+  acceptanceItems: AcceptanceItem[]
 }
 
 type Action =
@@ -95,6 +134,9 @@ type Action =
       budgets: BudgetItem[]
       schedules: ScheduleItem[]
       warranties: WarrantyRecord[]
+      changeOrders: ChangeOrder[]
+      contract: ContractRecord | null
+      acceptanceItems: AcceptanceItem[]
     }
   | { type: 'load/error'; message: string }
   | { type: 'project/upsert'; project: Project }
@@ -108,6 +150,12 @@ type Action =
   | { type: 'schedule/delete'; id: string }
   | { type: 'warranty/upsert'; warranty: WarrantyRecord }
   | { type: 'warranty/delete'; id: string }
+  | { type: 'changeOrder/upsert'; order: ChangeOrder }
+  | { type: 'changeOrder/delete'; id: string }
+  | { type: 'contract/upsert'; contract: ContractRecord }
+  | { type: 'acceptance/upsert'; item: AcceptanceItem }
+  | { type: 'acceptance/delete'; id: string }
+  | { type: 'acceptance/deleteByStage'; stageId: string }
 
 function reducer(state: DashboardState, action: Action): DashboardState {
   switch (action.type) {
@@ -122,6 +170,9 @@ function reducer(state: DashboardState, action: Action): DashboardState {
         budgets: action.budgets,
         schedules: action.schedules,
         warranties: action.warranties,
+        changeOrders: action.changeOrders,
+        contract: action.contract,
+        acceptanceItems: action.acceptanceItems,
         error: undefined,
       }
     case 'load/error':
@@ -160,6 +211,31 @@ function reducer(state: DashboardState, action: Action): DashboardState {
       return {
         ...state,
         warranties: state.warranties.filter((w) => w.id !== action.id),
+      }
+    case 'changeOrder/upsert': {
+      const others = state.changeOrders.filter((c) => c.id !== action.order.id)
+      return { ...state, changeOrders: [...others, action.order] }
+    }
+    case 'changeOrder/delete':
+      return {
+        ...state,
+        changeOrders: state.changeOrders.filter((c) => c.id !== action.id),
+      }
+    case 'contract/upsert':
+      return { ...state, contract: action.contract }
+    case 'acceptance/upsert': {
+      const others = state.acceptanceItems.filter((a) => a.id !== action.item.id)
+      return { ...state, acceptanceItems: [...others, action.item] }
+    }
+    case 'acceptance/delete':
+      return {
+        ...state,
+        acceptanceItems: state.acceptanceItems.filter((a) => a.id !== action.id),
+      }
+    case 'acceptance/deleteByStage':
+      return {
+        ...state,
+        acceptanceItems: state.acceptanceItems.filter((a) => a.stageId !== action.stageId),
       }
     default: {
       const _exhaustive: never = action
@@ -209,6 +285,34 @@ export interface UpdateWarrantyArgs {
   patch: WarrantyItemEditInput
 }
 
+export interface CreateChangeOrderArgs {
+  input: NewChangeOrderInput
+}
+
+export interface UpdateChangeOrderArgs {
+  id: string
+  patch: ChangeOrderEditInput
+}
+
+export interface DecideChangeOrderArgs {
+  id: string
+  decision: 'approved' | 'rejected'
+}
+
+export interface UpdateContractArgs {
+  contractAmount: number
+  receivedAmount: number
+}
+
+export interface CreateAcceptanceItemArgs {
+  input: NewAcceptanceItemInput
+}
+
+export interface UpdateAcceptanceItemArgs {
+  id: string
+  patch: AcceptanceItemEditInput
+}
+
 export interface DashboardActions {
   createStage(args: CreateStageArgs): Promise<Stage>
   updateStage(args: UpdateStageArgs): Promise<Stage>
@@ -225,6 +329,18 @@ export interface DashboardActions {
   createWarranty(args: CreateWarrantyArgs): Promise<WarrantyRecord>
   updateWarranty(args: UpdateWarrantyArgs): Promise<WarrantyRecord>
   deleteWarranty(id: string): Promise<void>
+  createChangeOrder(args: CreateChangeOrderArgs): Promise<ChangeOrder>
+  /** Only `pending` orders can be edited (SPEC §12.1). */
+  updateChangeOrder(args: UpdateChangeOrderArgs): Promise<ChangeOrder>
+  deleteChangeOrder(id: string): Promise<void>
+  /** Record the approve / reject decision — an in-app status only. */
+  decideChangeOrder(args: DecideChangeOrderArgs): Promise<ChangeOrder>
+  updateContract(args: UpdateContractArgs): Promise<ContractRecord>
+  createAcceptanceItem(args: CreateAcceptanceItemArgs): Promise<AcceptanceItem>
+  updateAcceptanceItem(args: UpdateAcceptanceItemArgs): Promise<AcceptanceItem>
+  deleteAcceptanceItem(id: string): Promise<void>
+  /** Flip `passed`; turning it on stamps `checkedOn` with today. */
+  toggleAcceptanceItem(id: string): Promise<AcceptanceItem>
 }
 
 export interface DashboardContextValue extends DashboardState, DashboardActions {}
@@ -254,6 +370,11 @@ function nowISO(clock?: () => Date): string {
   return d.toISOString()
 }
 
+/** Local `YYYY-MM-DD` for "today", honouring the injected test clock. */
+function todayFromClock(clock?: () => Date): string {
+  return clock ? formatLocalISO(clock()) : todayISO()
+}
+
 export function DashboardProvider({ children, clock, idFactory }: DashboardProviderProps) {
   const [state, dispatch] = useReducer(reducer, {
     loadState: 'idle',
@@ -263,6 +384,9 @@ export function DashboardProvider({ children, clock, idFactory }: DashboardProvi
     budgets: [],
     schedules: [],
     warranties: [],
+    changeOrders: [],
+    contract: null,
+    acceptanceItems: [],
   })
 
   // Load + seed on mount. The cancelled-flag pattern keeps this safe under
@@ -276,47 +400,70 @@ export function DashboardProvider({ children, clock, idFactory }: DashboardProvi
     ;(async () => {
       dispatch({ type: 'load/start' })
       try {
-        const [projects, stages, photos, budgets, schedules, warranties] = await Promise.all([
-          getAllProjects(),
-          getAllStages(),
-          getAllPhotos(),
-          getAllBudgets(),
-          getAllSchedules(),
-          getAllWarranties(),
-        ])
+        const readAll = () =>
+          Promise.all([
+            getAllProjects(),
+            getAllStages(),
+            getAllPhotos(),
+            getAllBudgets(),
+            getAllSchedules(),
+            getAllWarranties(),
+            getAllChangeOrders(),
+            getAllContracts(),
+            getAllAcceptanceItems(),
+          ])
+        let all = await readAll()
         if (cancelled) return
-        if (projects.length === 0) {
-          // First run — seed the database.
+        if (all[0].length === 0) {
+          // First run — seed atomically (only if still empty), so two tabs
+          // opening an empty database cannot create two projects.
           const seed = buildSeed({
             idFactory: idFactory ?? (() => newId(idFactory)),
             now: () => nowISO(clock),
           })
-          await putProject(seed.project)
-          for (const stage of seed.stages) {
-            await putStage(stage)
-          }
+          await seedIfEmpty(seed.project, seed.stages)
           if (cancelled) return
-          dispatch({
-            type: 'load/success',
-            project: seed.project,
-            stages: seed.stages,
-            photos: [],
-            budgets: [],
-            schedules: [],
-            warranties: [],
-          })
-        } else {
-          const project = projects[0] ?? null
-          dispatch({
-            type: 'load/success',
-            project,
-            stages,
-            photos,
-            budgets,
-            schedules,
-            warranties,
-          })
+          all = await readAll()
+          if (cancelled) return
         }
+        const [
+          projects,
+          stages,
+          photos,
+          budgets,
+          schedules,
+          warranties,
+          changeOrders,
+          contracts,
+          acceptanceItems,
+        ] = all
+        // Single-project app: pick the oldest project deterministically and
+        // only load records that belong to it, so data of any other project in
+        // the same database never leaks into totals or share links.
+        const project =
+          projects
+            .slice()
+            .sort((a, b) =>
+              a.createdAt !== b.createdAt
+                ? a.createdAt < b.createdAt ? -1 : 1
+                : a.id < b.id ? -1 : a.id > b.id ? 1 : 0,
+            )[0] ?? null
+        const own = <T extends { projectId: string }>(rows: T[]) =>
+          project ? rows.filter((r) => r.projectId === project.id) : []
+        dispatch({
+          type: 'load/success',
+          project,
+          stages: own(stages),
+          photos: own(photos),
+          budgets: own(budgets),
+          schedules: own(schedules),
+          warranties: own(warranties),
+          changeOrders: own(changeOrders),
+          contract: project
+            ? (contracts.find((c) => c.projectId === project.id) ?? null)
+            : null,
+          acceptanceItems: own(acceptanceItems),
+        })
       } catch (err) {
         if (cancelled) return
         dispatch({
@@ -424,22 +571,29 @@ export function DashboardProvider({ children, clock, idFactory }: DashboardProvi
 
   const deleteStage = useCallback<DashboardActions['deleteStage']>(
     async (id) => {
-      await dbDeleteStage(id)
+      // FR-009: acceptance items cannot outlive their stage — one transaction.
+      await deleteStageWithAcceptance(id)
       dispatch({ type: 'stage/delete', id })
+      dispatch({ type: 'acceptance/deleteByStage', stageId: id })
     },
     [],
   )
 
   const updateProject = useCallback<DashboardActions['updateProject']>(
     async (patch) => {
-      const current = state.project
-      if (!current) throw new Error('尚無工程資料')
-      const next: Project = {
-        ...current,
-        ...patch,
-        updatedAt: nowISO(clock),
-      }
-      await putProject(next)
+      const known = state.project
+      if (!known) throw new Error('尚無工程資料')
+      const updatedAt = nowISO(clock)
+      // Merge the patch into the record as currently STORED, so a stale tab
+      // changing one field cannot restore other fields (e.g. a cleared
+      // address) from its out-of-date copy.
+      const next = await mutateRecord<Project>(STORE_PROJECTS, known.id, (stored) => {
+        const merged: Project = { ...(stored ?? known), ...patch, updatedAt }
+        // Clearing the address removes the field entirely, so nothing about
+        // it is stored or shared (AC-005).
+        if ('address' in patch && !patch.address) delete merged.address
+        return merged
+      })
       dispatch({ type: 'project/upsert', project: next })
       return next
     },
@@ -716,6 +870,227 @@ export function DashboardProvider({ children, clock, idFactory }: DashboardProvi
     [],
   )
 
+  // ---------- FR-007 change orders ----------
+
+  const createChangeOrder = useCallback<DashboardActions['createChangeOrder']>(
+    async ({ input }) => {
+      const project = state.project ?? (await getAllProjects())[0]
+      if (!project) {
+        throw new Error('尚無工程資料，無法新增變更單')
+      }
+      const projectId = input.projectId || project.id
+      const result = validateNewChangeOrderInput({ ...input, projectId })
+      if (!result.ok) {
+        throw new ChangeOrderValidationError(result.errors)
+      }
+      const now = nowISO(clock)
+      const order: ChangeOrder = {
+        id: newId(idFactory),
+        projectId,
+        stageId: input.stageId,
+        title: input.title.trim(),
+        amount: input.amount,
+        material: input.material?.trim() || undefined,
+        note: input.note?.trim() || undefined,
+        // SPEC §12.1: every new order starts as pending.
+        status: 'pending',
+        createdAt: now,
+        updatedAt: now,
+      }
+      await putChangeOrder(order)
+      dispatch({ type: 'changeOrder/upsert', order })
+      return order
+    },
+    [state.project, clock, idFactory],
+  )
+
+  /** Re-read one change order after a rejected write so the UI shows the
+   *  decision another tab recorded instead of the stale copy. */
+  const refreshChangeOrder = useCallback(async (id: string) => {
+    const stored = (await getAllChangeOrders()).find((c) => c.id === id)
+    if (stored) dispatch({ type: 'changeOrder/upsert', order: stored })
+    else dispatch({ type: 'changeOrder/delete', id })
+  }, [])
+
+  const updateChangeOrder = useCallback<DashboardActions['updateChangeOrder']>(
+    async ({ id, patch }) => {
+      if (!state.changeOrders.some((c) => c.id === id)) {
+        throw new Error(`找不到變更單：${id}`)
+      }
+      const result = validateChangeOrderInput(patch)
+      if (!result.ok) {
+        throw new ChangeOrderValidationError(result.errors)
+      }
+      const updatedAt = nowISO(clock)
+      // The "pending only" rule is checked against the STORED order inside the
+      // write transaction: another tab may already have decided it.
+      const updated = await mutateRecord<ChangeOrder>(STORE_CHANGE_ORDERS, id, (stored) => {
+        if (!stored) throw new RecordConflictError(`找不到變更單：${id}`)
+        if (!canEditChangeOrder(stored)) {
+          throw new ChangeOrderValidationError([
+            { field: 'status', message: '已決定的變更單不可再編輯' },
+          ])
+        }
+        return {
+          ...stored,
+          stageId: patch.stageId,
+          title: patch.title.trim(),
+          amount: patch.amount,
+          material: patch.material?.trim() || undefined,
+          note: patch.note?.trim() || undefined,
+          updatedAt,
+        }
+      }).catch(async (err: unknown) => {
+        await refreshChangeOrder(id)
+        throw err
+      })
+      dispatch({ type: 'changeOrder/upsert', order: updated })
+      return updated
+    },
+    [state.changeOrders, clock, refreshChangeOrder],
+  )
+
+  const deleteChangeOrder = useCallback<DashboardActions['deleteChangeOrder']>(
+    async (id) => {
+      await dbDeleteChangeOrder(id)
+      dispatch({ type: 'changeOrder/delete', id })
+    },
+    [],
+  )
+
+  const decideChangeOrder = useCallback<DashboardActions['decideChangeOrder']>(
+    async ({ id, decision }) => {
+      if (!state.changeOrders.some((c) => c.id === id)) {
+        throw new Error(`找不到變更單：${id}`)
+      }
+      const today = todayFromClock(clock)
+      const updatedAt = nowISO(clock)
+      // Decide against the STORED order in one transaction; a decision already
+      // recorded in another tab is never overwritten.
+      const updated = await mutateRecord<ChangeOrder>(STORE_CHANGE_ORDERS, id, (stored) => {
+        if (!stored) throw new RecordConflictError(`找不到變更單：${id}`)
+        return applyChangeOrderDecision(stored, decision, today, updatedAt)
+      }).catch(async (err: unknown) => {
+        await refreshChangeOrder(id)
+        throw err
+      })
+      dispatch({ type: 'changeOrder/upsert', order: updated })
+      return updated
+    },
+    [state.changeOrders, clock, refreshChangeOrder],
+  )
+
+  // ---------- FR-008 contract & receipts ----------
+
+  const updateContract = useCallback<DashboardActions['updateContract']>(
+    async ({ contractAmount, receivedAmount }) => {
+      const project = state.project ?? (await getAllProjects())[0]
+      if (!project) {
+        throw new Error('尚無工程資料，無法儲存合約金額')
+      }
+      const result = validateContractInput({ contractAmount, receivedAmount })
+      if (!result.ok) {
+        throw new ContractValidationError(result.errors)
+      }
+      const contract: ContractRecord = {
+        projectId: project.id,
+        contractAmount,
+        receivedAmount,
+        updatedAt: nowISO(clock),
+      }
+      await putContract(contract)
+      dispatch({ type: 'contract/upsert', contract })
+      return contract
+    },
+    [state.project, clock],
+  )
+
+  // ---------- FR-009 acceptance checklist ----------
+
+  const createAcceptanceItem = useCallback<DashboardActions['createAcceptanceItem']>(
+    async ({ input }) => {
+      const project = state.project ?? (await getAllProjects())[0]
+      if (!project) {
+        throw new Error('尚無工程資料，無法新增驗收項目')
+      }
+      const projectId = input.projectId || project.id
+      const stages = state.stages.length > 0 ? state.stages : await getAllStages()
+      const result = validateNewAcceptanceInput({ ...input, projectId }, { stages })
+      if (!result.ok) {
+        throw new AcceptanceValidationError(result.errors)
+      }
+      const now = nowISO(clock)
+      const item: AcceptanceItem = {
+        id: newId(idFactory),
+        projectId,
+        stageId: input.stageId,
+        name: input.name.trim(),
+        passed: false,
+        note: input.note?.trim() || undefined,
+        createdAt: now,
+        updatedAt: now,
+      }
+      // Re-checks the stage inside the write transaction (it may have been
+      // deleted in another tab since this tab loaded).
+      await putAcceptanceItemIfStageExists(item)
+      dispatch({ type: 'acceptance/upsert', item })
+      return item
+    },
+    [state.project, state.stages, clock, idFactory],
+  )
+
+  const updateAcceptanceItem = useCallback<DashboardActions['updateAcceptanceItem']>(
+    async ({ id, patch }) => {
+      const current = state.acceptanceItems.find((a) => a.id === id)
+      if (!current) throw new Error(`找不到驗收項目：${id}`)
+      const result = validateAcceptanceInput(patch)
+      if (!result.ok) {
+        throw new AcceptanceValidationError(result.errors)
+      }
+      const updatedAt = nowISO(clock)
+      const updated = await mutateRecord<AcceptanceItem>(STORE_ACCEPTANCE_ITEMS, id, (stored) => {
+        if (!stored) throw new RecordConflictError(`找不到驗收項目：${id}`)
+        return {
+          ...stored,
+          name: patch.name.trim(),
+          note: patch.note?.trim() || undefined,
+          updatedAt,
+        }
+      })
+      dispatch({ type: 'acceptance/upsert', item: updated })
+      return updated
+    },
+    [state.acceptanceItems, clock],
+  )
+
+  const deleteAcceptanceItem = useCallback<DashboardActions['deleteAcceptanceItem']>(
+    async (id) => {
+      await dbDeleteAcceptanceItem(id)
+      dispatch({ type: 'acceptance/delete', id })
+    },
+    [],
+  )
+
+  const toggleAcceptanceItem = useCallback<DashboardActions['toggleAcceptanceItem']>(
+    async (id) => {
+      const current = state.acceptanceItems.find((a) => a.id === id)
+      if (!current) throw new Error(`找不到驗收項目：${id}`)
+      // The click means "set to the opposite of what is shown". Apply that
+      // target to the STORED item so a stale tab cannot flip it back.
+      const wantPassed = !current.passed
+      const today = todayFromClock(clock)
+      const updatedAt = nowISO(clock)
+      const updated = await mutateRecord<AcceptanceItem>(STORE_ACCEPTANCE_ITEMS, id, (stored) => {
+        if (!stored) throw new RecordConflictError(`找不到驗收項目：${id}`)
+        if (stored.passed === wantPassed) return stored
+        return toggleAcceptancePassed(stored, today, updatedAt)
+      })
+      dispatch({ type: 'acceptance/upsert', item: updated })
+      return updated
+    },
+    [state.acceptanceItems, clock],
+  )
+
   const sortedStages = useMemo(() => [...state.stages].sort(compareStageOrder), [state.stages])
 
   const value = useMemo<DashboardContextValue>(
@@ -737,6 +1112,15 @@ export function DashboardProvider({ children, clock, idFactory }: DashboardProvi
       createWarranty,
       updateWarranty,
       deleteWarranty,
+      createChangeOrder,
+      updateChangeOrder,
+      deleteChangeOrder,
+      decideChangeOrder,
+      updateContract,
+      createAcceptanceItem,
+      updateAcceptanceItem,
+      deleteAcceptanceItem,
+      toggleAcceptanceItem,
     }),
     [
       state,
@@ -756,6 +1140,15 @@ export function DashboardProvider({ children, clock, idFactory }: DashboardProvi
       createWarranty,
       updateWarranty,
       deleteWarranty,
+      createChangeOrder,
+      updateChangeOrder,
+      deleteChangeOrder,
+      decideChangeOrder,
+      updateContract,
+      createAcceptanceItem,
+      updateAcceptanceItem,
+      deleteAcceptanceItem,
+      toggleAcceptanceItem,
     ],
   )
 
@@ -813,6 +1206,33 @@ export class WarrantyValidationError extends Error {
         .join('；'),
     )
     this.name = 'WarrantyValidationError'
+    this.errors = errors
+  }
+}
+
+export class ChangeOrderValidationError extends Error {
+  errors: { field: string; message: string }[]
+  constructor(errors: { field: string; message: string }[]) {
+    super(errors.map((e) => e.message).join('；'))
+    this.name = 'ChangeOrderValidationError'
+    this.errors = errors
+  }
+}
+
+export class ContractValidationError extends Error {
+  errors: { field: string; message: string }[]
+  constructor(errors: { field: string; message: string }[]) {
+    super(errors.map((e) => e.message).join('；'))
+    this.name = 'ContractValidationError'
+    this.errors = errors
+  }
+}
+
+export class AcceptanceValidationError extends Error {
+  errors: { field: string; message: string }[]
+  constructor(errors: { field: string; message: string }[]) {
+    super(errors.map((e) => e.message).join('；'))
+    this.name = 'AcceptanceValidationError'
     this.errors = errors
   }
 }

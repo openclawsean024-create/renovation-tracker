@@ -12,9 +12,11 @@
 // data. That is the documented product contract.
 
 import {
+  CHANGE_ORDER_STATUSES,
   PHOTO_KINDS,
   PROJECT_STATUSES,
   STAGE_STATUSES,
+  type ChangeOrderStatus,
   type PhotoKind,
   type ProjectStatus,
   type StageStatus,
@@ -25,10 +27,41 @@ import {
   daysUntilEnd,
   warrantyDateStatus,
 } from './warranty'
+import { buildPhotoReport } from './photoReport'
+import { sumApprovedChangeOrders, validateChangeOrderInput } from './changeOrders'
+import { validateContractInput } from './contract'
+import { fractionDigitsOf } from './budget'
+import { dayCountInclusive } from './dates'
+import { MAX_BUDGET_DECIMALS, MAX_MONEY_AMOUNT, roundBudgetAmount } from './types'
+
+/** Longest project window a share link may describe (about ten years). The
+ *  read-only page renders one cell per day, so an absurd range in a crafted
+ *  link must be rejected before anything is laid out. */
+export const MAX_SHARE_PROJECT_DAYS = 3660
 
 /** Current snapshot version. Bump when an incompatible change is shipped.
- *  Unknown versions are rejected by `decodeShareHash` (AC-FR004-04). */
-export const SHARE_SNAPSHOT_VERSION = 1
+ *  Unknown versions are rejected by `decodeShareHash` (AC-FR004-04).
+ *
+ *  v1 — FR-004 baseline (project, stages, gantt, photo metadata, budget /
+ *       schedule / warranty summaries). Address and warranty contact were
+ *       embedded whenever the source record had them.
+ *  v2 — M1 / GOAL AC-005: adds change orders, contract summary, acceptance
+ *       progress, per-stage photo report and a `privacy` marker. Address and
+ *       contact details are omitted unless the sharer explicitly opts in. */
+export const SHARE_SNAPSHOT_VERSION = 2
+
+/** Versions `decodeShareHash` can still open. v1 links created before M1 keep
+ *  working; they simply have none of the v2 sections. */
+export const SUPPORTED_SHARE_SNAPSHOT_VERSIONS: readonly number[] = [1, 2]
+
+/** What the sharer chose to reveal. Both default to `false` — personal data
+ *  never enters the URL unless a box was ticked in the share dialog. */
+export interface SharePrivacyOptions {
+  /** Include `Project.address`. */
+  includeAddress?: boolean
+  /** Include worker phone numbers and warranty contact details. */
+  includeContacts?: boolean
+}
 
 /** The hash key that the Dashboard reads to enter readonly mode. */
 export const SHARE_HASH_KEY = 'share'
@@ -97,6 +130,86 @@ export interface ShareSnapshot {
    *  optional so existing snapshots produced before FR-006 shipped still
    *  decode; missing entries default to `[]`. */
   warranties?: ShareWarranty[]
+  /** v2: which personal-data groups the sharer opted to include. Absent on
+   *  v1 snapshots. */
+  privacy?: SharePrivacy
+  /** v2 / FR-007: change orders (title, amount, status only). */
+  changeOrders?: ShareChangeOrder[]
+  /** v2 / FR-008: contract & receipts summary. */
+  contractSummary?: ShareContractSummary
+  /** v2 / FR-009: acceptance progress, overall and per stage. */
+  acceptanceSummary?: ShareAcceptanceSummary
+  /** v2 / FR-010: per-stage photo count + latest shooting date. Metadata
+   *  only — never a Blob. */
+  photoReport?: SharePhotoReport
+  /** v2: worker contact details. Present only when the sharer ticked
+   *  「包含聯絡方式」. */
+  scheduleContacts?: ShareScheduleContact[]
+}
+
+export interface SharePrivacy {
+  includesAddress: boolean
+  includesContacts: boolean
+}
+
+export interface ShareChangeOrder {
+  /** Snapshot-local reference (`change-N`). NOT the source IndexedDB key. */
+  id: string
+  title: string
+  amount: number
+  status: ChangeOrderStatus
+  /** Day the decision was recorded locally (`YYYY-MM-DD`). */
+  decidedOn?: string
+}
+
+export interface ShareContractSummary {
+  contractAmount: number
+  approvedChangeTotal: number
+  adjustedTotal: number
+  receivedAmount: number
+  /** adjustedTotal - receivedAmount; negative means over-received (溢收). */
+  outstanding: number
+  isOverpaid: boolean
+}
+
+export interface ShareAcceptanceStage {
+  /** Snapshot-local stage reference (`stage-N`). */
+  stageId: string
+  total: number
+  passed: number
+  /** Stage is completed but still has un-passed items. */
+  hasWarning: boolean
+}
+
+export interface ShareAcceptanceSummary {
+  total: number
+  passed: number
+  /** Only stages that have at least one acceptance item. */
+  stages: ShareAcceptanceStage[]
+}
+
+export interface SharePhotoReportEntry {
+  count: number
+  latestTakenOn?: string
+}
+
+export interface SharePhotoReportStage extends SharePhotoReportEntry {
+  /** Snapshot-local stage reference (`stage-N`). */
+  stageId: string
+}
+
+export interface SharePhotoReport {
+  /** Only stages that have at least one photo. */
+  stages: SharePhotoReportStage[]
+  /** Photos not linked to any stage (未分類). */
+  unassigned: SharePhotoReportEntry
+}
+
+export interface ShareScheduleContact {
+  /** Snapshot-local reference (`schedule-N`). NOT the source IndexedDB key. */
+  id: string
+  workerName: string
+  phone: string
 }
 
 export interface ShareStage {
@@ -214,6 +327,20 @@ export function makeShareWarrantyRef(displayIndex: number): string {
   return `${SHARE_WARRANTY_REF_PREFIX}${displayIndex}`
 }
 
+/** Change-order-local reference prefix. IndexedDB keys are NEVER used here. */
+export const SHARE_CHANGE_ORDER_REF_PREFIX = 'change-'
+
+export function makeShareChangeOrderRef(displayIndex: number): string {
+  return `${SHARE_CHANGE_ORDER_REF_PREFIX}${displayIndex}`
+}
+
+/** Schedule-contact-local reference prefix. IndexedDB keys are NEVER used here. */
+export const SHARE_SCHEDULE_REF_PREFIX = 'schedule-'
+
+export function makeShareScheduleRef(displayIndex: number): string {
+  return `${SHARE_SCHEDULE_REF_PREFIX}${displayIndex}`
+}
+
 /** True iff `value` looks like a snapshot-local warranty reference (`warranty-N`). */
 function isShareWarrantyRef(value: unknown): value is string {
   return typeof value === 'string' && /^warranty-\d+$/.test(value)
@@ -307,6 +434,11 @@ export function buildShareSnapshot(input: {
     takenOn: string
     fileName: string
     mimeType: string
+    /** Source stage key. Used only to derive the per-stage photo report; it
+     *  is never written to the snapshot. */
+    stageId?: string
+    /** Used only as a tie-breaker for "latest photo". Never written out. */
+    createdAt?: string
   }>
   budgetSummary: ShareBudgetSummary
   /** FR-005 summary. Optional — defaults to all-zero so older snapshots
@@ -329,7 +461,26 @@ export function buildShareSnapshot(input: {
   /** Snapshot generation day (YYYY-MM-DD). Drives warranty status + countdown.
    *  Defaults to the local "today" at build time. */
   generatedAt?: string
+  /** AC-005: personal data is opt-in. Omitted ⇒ nothing personal is shared. */
+  privacy?: SharePrivacyOptions
+  /** FR-007 change orders in display order. Only title / amount / status /
+   *  decidedOn are shared; material and note stay on the device. */
+  changeOrders?: ReadonlyArray<{
+    id: string
+    title: string
+    amount: number
+    status: ChangeOrderStatus
+    decidedOn?: string
+  }>
+  /** FR-008 pre-computed contract summary. */
+  contractSummary?: ShareContractSummary
+  /** FR-009 acceptance items (`stageId` is the source stage key). */
+  acceptanceItems?: ReadonlyArray<{ stageId: string; passed: boolean }>
+  /** FR-005 schedules — only read when `privacy.includeContacts` is true. */
+  scheduleContacts?: ReadonlyArray<{ workerName: string; phone?: string }>
 }): ShareSnapshot {
+  const includeAddress = input.privacy?.includeAddress === true
+  const includeContacts = input.privacy?.includeContacts === true
   // Map every input stage to a snapshot-local reference by display order.
   // The originating IndexedDB key is intentionally discarded.
   const stages: ShareStage[] = input.stages.map((s, idx) => ({
@@ -371,7 +522,8 @@ export function buildShareSnapshot(input: {
       id: makeShareWarrantyRef(idx + 1),
       itemName: w.itemName,
       provider: w.provider,
-      ...(w.contact !== undefined ? { contact: w.contact } : {}),
+      // AC-005: contact details are personal data — opt-in only.
+      ...(includeContacts && w.contact !== undefined ? { contact: w.contact } : {}),
       startsOn: w.startsOn,
       endsOn: w.endsOn,
       ...(w.note !== undefined ? { note: w.note } : {}),
@@ -406,12 +558,88 @@ export function buildShareSnapshot(input: {
     })
   })
 
+  // ---------- v2 sections (GOAL AC-005) ----------
+
+  const changeOrders: ShareChangeOrder[] = (input.changeOrders ?? []).map((c, idx) => ({
+    id: makeShareChangeOrderRef(idx + 1),
+    title: c.title,
+    amount: c.amount,
+    status: c.status,
+    ...(c.decidedOn !== undefined ? { decidedOn: c.decidedOn } : {}),
+  }))
+
+  // Acceptance progress per stage, keyed by the snapshot-local stage ref.
+  // Items whose stage is not part of the snapshot still count in the overall
+  // totals but get no per-stage row (their key must not leak).
+  const acceptanceItems = input.acceptanceItems ?? []
+  const acceptanceStages: ShareAcceptanceStage[] = []
+  input.stages.forEach((stage, idx) => {
+    const items = acceptanceItems.filter((a) => a.stageId === stage.id)
+    if (items.length === 0) return
+    const passed = items.filter((a) => a.passed).length
+    acceptanceStages.push({
+      stageId: makeShareStageRef(idx + 1),
+      total: items.length,
+      passed,
+      hasWarning: stage.status === 'completed' && passed < items.length,
+    })
+  })
+  const acceptanceSummary: ShareAcceptanceSummary = {
+    total: acceptanceItems.length,
+    passed: acceptanceItems.filter((a) => a.passed).length,
+    stages: acceptanceStages,
+  }
+
+  // Per-stage photo counts + latest shooting date (FR-010). Metadata only.
+  const report = buildPhotoReport(
+    input.stages,
+    input.photos.map((p) => ({
+      id: p.id,
+      stageId: p.stageId,
+      takenOn: p.takenOn,
+      createdAt: p.createdAt ?? '',
+    })),
+  )
+  const photoReport: SharePhotoReport = {
+    stages: report.stages
+      .filter((g) => g.count > 0)
+      .map((g) => ({
+        stageId: stageIdToRef[g.stageId as string]!,
+        count: g.count,
+        ...(g.latestTakenOn !== undefined ? { latestTakenOn: g.latestTakenOn } : {}),
+      })),
+    unassigned: {
+      count: report.unassigned.count,
+      ...(report.unassigned.latestTakenOn !== undefined
+        ? { latestTakenOn: report.unassigned.latestTakenOn }
+        : {}),
+    },
+  }
+
+  // Worker phone numbers are personal data — opt-in only, and only entries
+  // that actually have a phone number are shared.
+  const scheduleContacts: ShareScheduleContact[] = []
+  if (includeContacts) {
+    for (const item of input.scheduleContacts ?? []) {
+      const phone = item.phone?.trim()
+      if (!phone) continue
+      scheduleContacts.push({
+        id: makeShareScheduleRef(scheduleContacts.length + 1),
+        workerName: item.workerName,
+        phone,
+      })
+    }
+  }
+
   return {
     version: SHARE_SNAPSHOT_VERSION,
     generatedAt: input.generatedAt ?? new Date().toISOString(),
     project: {
       name: input.project.name,
-      ...(input.project.address !== undefined ? { address: input.project.address } : {}),
+      // AC-005: the address is personal data — opt-in only.
+      ...(includeAddress && input.project.address !== undefined
+        ? { address: input.project.address }
+        : {}),
       status: input.project.status,
       plannedStart: input.project.plannedStart,
       plannedEnd: input.project.plannedEnd,
@@ -434,6 +662,15 @@ export function buildShareSnapshot(input: {
       ? { ...input.warrantySummary }
       : { total: 0, expiringSoon: 0, expired: 0, active: 0 },
     warranties,
+    privacy: {
+      includesAddress: includeAddress && input.project.address !== undefined,
+      includesContacts: includeContacts,
+    },
+    changeOrders,
+    ...(input.contractSummary ? { contractSummary: { ...input.contractSummary } } : {}),
+    acceptanceSummary,
+    photoReport,
+    ...(includeContacts ? { scheduleContacts } : {}),
   }
 }
 
@@ -543,7 +780,7 @@ export function decodeShareHash(hash: string | undefined | null): ShareDecodeRes
       error: { code: 'unknown-version', message: '分享連結缺少版本資訊' },
     }
   }
-  if (candidate.version !== SHARE_SNAPSHOT_VERSION) {
+  if (!SUPPORTED_SHARE_SNAPSHOT_VERSIONS.includes(candidate.version)) {
     return {
       ok: false,
       error: {
@@ -556,7 +793,29 @@ export function decodeShareHash(hash: string | undefined | null): ShareDecodeRes
   if (!validated.ok) {
     return validated
   }
-  return { ok: true, snapshot: validated.snapshot }
+  const extras = validateV2Sections(candidate)
+  if (!extras.ok) {
+    return { ok: false, error: extras.error }
+  }
+  if (candidate.version >= 2) {
+    // A v2 link must not carry personal data its privacy marker says is
+    // absent (a crafted link could otherwise show contact details under a
+    // 「不含聯絡方式」 notice). A missing marker means "nothing included".
+    const privacy = extras.sections.privacy ?? { includesAddress: false, includesContacts: false }
+    const hasAddress = validated.snapshot.project.address !== undefined
+    const hasContacts =
+      (extras.sections.scheduleContacts?.length ?? 0) > 0 ||
+      (validated.snapshot.warranties ?? []).some((w) => w.contact !== undefined)
+    if ((hasAddress && !privacy.includesAddress) || (hasContacts && !privacy.includesContacts)) {
+      return { ok: false, error: { code: 'shape', message: '分享連結的個資設定與內容不一致' } }
+    }
+  }
+  return {
+    ok: true,
+    // Keep the version the link was created with so the viewer can tell a
+    // pre-M1 (v1) link from a current one.
+    snapshot: { ...validated.snapshot, version: candidate.version, ...extras.sections },
+  }
 }
 
 // ---------- internal validation ----------
@@ -583,6 +842,231 @@ function isSharePhotoRef(value: unknown): value is string {
   return typeof value === 'string' && /^photo-\d+$/.test(value)
 }
 
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value)
+}
+
+function isCount(value: unknown): value is number {
+  return isFiniteNumber(value) && Number.isInteger(value) && value >= 0
+}
+
+/** A signed money figure as the builder can produce it: finite, at most two
+ *  decimals and inside the representable range. */
+function isMoney(value: unknown): value is number {
+  return (
+    isFiniteNumber(value) &&
+    Math.abs(value) < MAX_MONEY_AMOUNT * 2 &&
+    fractionDigitsOf(value) <= MAX_BUDGET_DECIMALS
+  )
+}
+
+type V2Sections = Pick<
+  ShareSnapshot,
+  | 'privacy'
+  | 'changeOrders'
+  | 'contractSummary'
+  | 'acceptanceSummary'
+  | 'photoReport'
+  | 'scheduleContacts'
+>
+
+function shapeError(message: string): { ok: false; error: ShareDecodeError } {
+  return { ok: false, error: { code: 'shape', message } }
+}
+
+/**
+ * Validate the optional v2 sections (GOAL AC-005). Every section is optional
+ * so a v1 link — which has none of them — still decodes. A section that is
+ * present but malformed is rejected with a `shape` error instead of crashing
+ * the read-only page.
+ */
+function validateV2Sections(
+  raw: Record<string, unknown>,
+): { ok: true; sections: V2Sections } | { ok: false; error: ShareDecodeError } {
+  const sections: V2Sections = {}
+
+  if (raw.privacy !== undefined) {
+    const p = raw.privacy
+    if (
+      !isPlainObject(p) ||
+      typeof p.includesAddress !== 'boolean' ||
+      typeof p.includesContacts !== 'boolean'
+    ) {
+      return shapeError('分享隱私設定格式不正確')
+    }
+    sections.privacy = {
+      includesAddress: p.includesAddress,
+      includesContacts: p.includesContacts,
+    }
+  }
+
+  if (raw.changeOrders !== undefined) {
+    if (!Array.isArray(raw.changeOrders)) return shapeError('變更單資料格式不正確')
+    const list: ShareChangeOrder[] = []
+    for (const item of raw.changeOrders) {
+      if (!isPlainObject(item)) return shapeError('變更單資料格式不正確')
+      if (typeof item.id !== 'string' || !/^change-\d+$/.test(item.id)) {
+        return shapeError('變更單 ID 格式不正確（須為快照本地參照）')
+      }
+      if (typeof item.title !== 'string' || item.title.length === 0) {
+        return shapeError('變更單標題缺失')
+      }
+      if (!isFiniteNumber(item.amount)) return shapeError('變更單金額不正確')
+      if (!validateChangeOrderInput({ title: item.title, amount: item.amount }).ok) {
+        return shapeError('變更單金額不正確')
+      }
+      if (!isOneOf(item.status, CHANGE_ORDER_STATUSES)) return shapeError('變更單狀態不正確')
+      const order: ShareChangeOrder = {
+        id: item.id,
+        title: item.title,
+        amount: item.amount,
+        status: item.status,
+      }
+      if (item.decidedOn !== undefined) {
+        if (!isIsoDate(item.decidedOn)) return shapeError('變更單決定日期格式不正確')
+        order.decidedOn = item.decidedOn
+      }
+      list.push(order)
+    }
+    sections.changeOrders = list
+  }
+
+  if (raw.contractSummary !== undefined) {
+    const c = raw.contractSummary
+    if (!isPlainObject(c)) return shapeError('合約收款概要格式不正確')
+    for (const key of [
+      'contractAmount',
+      'approvedChangeTotal',
+      'adjustedTotal',
+      'receivedAmount',
+      'outstanding',
+    ]) {
+      if (!isFiniteNumber(c[key])) return shapeError(`合約收款概要欄位 ${key} 缺失`)
+      if (!isMoney(c[key])) return shapeError(`合約收款概要欄位 ${key} 不正確`)
+    }
+    if (typeof c.isOverpaid !== 'boolean') return shapeError('合約收款概要欄位 isOverpaid 缺失')
+    // Base figures follow the same rules as the editor; derived figures must
+    // match them, so a crafted link cannot show arbitrary totals.
+    if (
+      !validateContractInput({
+        contractAmount: c.contractAmount as number,
+        receivedAmount: c.receivedAmount as number,
+      }).ok
+    ) {
+      return shapeError('合約金額不正確')
+    }
+    const adjusted = roundBudgetAmount((c.contractAmount as number) + (c.approvedChangeTotal as number))
+    const outstanding = roundBudgetAmount(adjusted - (c.receivedAmount as number))
+    if (
+      c.adjustedTotal !== adjusted ||
+      c.outstanding !== outstanding ||
+      c.isOverpaid !== outstanding < 0
+    ) {
+      return shapeError('合約收款概要的金額彼此不一致')
+    }
+    if (
+      sections.changeOrders !== undefined &&
+      c.approvedChangeTotal !== sumApprovedChangeOrders(sections.changeOrders)
+    ) {
+      return shapeError('已核准變更合計與變更單不一致')
+    }
+    sections.contractSummary = {
+      contractAmount: c.contractAmount as number,
+      approvedChangeTotal: c.approvedChangeTotal as number,
+      adjustedTotal: c.adjustedTotal as number,
+      receivedAmount: c.receivedAmount as number,
+      outstanding: c.outstanding as number,
+      isOverpaid: c.isOverpaid,
+    }
+  }
+
+  if (raw.acceptanceSummary !== undefined) {
+    const a = raw.acceptanceSummary
+    if (
+      !isPlainObject(a) ||
+      !isCount(a.total) ||
+      !isCount(a.passed) ||
+      a.passed > a.total ||
+      !Array.isArray(a.stages)
+    ) {
+      return shapeError('驗收進度格式不正確')
+    }
+    const stages: ShareAcceptanceStage[] = []
+    for (const item of a.stages) {
+      if (
+        !isPlainObject(item) ||
+        !isShareStageRef(item.stageId) ||
+        !isCount(item.total) ||
+        !isCount(item.passed) ||
+        item.passed > item.total ||
+        typeof item.hasWarning !== 'boolean'
+      ) {
+        return shapeError('驗收階段資料格式不正確')
+      }
+      stages.push({
+        stageId: item.stageId,
+        total: item.total,
+        passed: item.passed,
+        hasWarning: item.hasWarning,
+      })
+    }
+    sections.acceptanceSummary = { total: a.total, passed: a.passed, stages }
+  }
+
+  if (raw.photoReport !== undefined) {
+    const r = raw.photoReport
+    if (!isPlainObject(r) || !Array.isArray(r.stages) || !isPlainObject(r.unassigned)) {
+      return shapeError('照片進度回報格式不正確')
+    }
+    const stages: SharePhotoReportStage[] = []
+    for (const item of r.stages) {
+      if (!isPlainObject(item) || !isShareStageRef(item.stageId) || !isCount(item.count)) {
+        return shapeError('照片進度回報階段格式不正確')
+      }
+      if (item.latestTakenOn !== undefined && !isIsoDate(item.latestTakenOn)) {
+        return shapeError('照片最新拍攝日格式不正確')
+      }
+      stages.push({
+        stageId: item.stageId,
+        count: item.count,
+        ...(item.latestTakenOn !== undefined ? { latestTakenOn: item.latestTakenOn } : {}),
+      })
+    }
+    const u = r.unassigned
+    if (!isCount(u.count)) return shapeError('未分類照片數量不正確')
+    if (u.latestTakenOn !== undefined && !isIsoDate(u.latestTakenOn)) {
+      return shapeError('照片最新拍攝日格式不正確')
+    }
+    sections.photoReport = {
+      stages,
+      unassigned: {
+        count: u.count,
+        ...(u.latestTakenOn !== undefined ? { latestTakenOn: u.latestTakenOn } : {}),
+      },
+    }
+  }
+
+  if (raw.scheduleContacts !== undefined) {
+    if (!Array.isArray(raw.scheduleContacts)) return shapeError('工班聯絡資料格式不正確')
+    const list: ShareScheduleContact[] = []
+    for (const item of raw.scheduleContacts) {
+      if (
+        !isPlainObject(item) ||
+        typeof item.id !== 'string' ||
+        !/^schedule-\d+$/.test(item.id) ||
+        typeof item.workerName !== 'string' ||
+        typeof item.phone !== 'string'
+      ) {
+        return shapeError('工班聯絡資料格式不正確')
+      }
+      list.push({ id: item.id, workerName: item.workerName, phone: item.phone })
+    }
+    sections.scheduleContacts = list
+  }
+
+  return { ok: true, sections }
+}
+
 function validateSnapshotShape(raw: Record<string, unknown>): ShareDecodeResult {
   if (!isPlainObject(raw.project)) {
     return { ok: false, error: { code: 'shape', message: '工程資料格式不正確' } }
@@ -596,6 +1080,12 @@ function validateSnapshotShape(raw: Record<string, unknown>): ShareDecodeResult 
   }
   if (!isIsoDate(project.plannedStart) || !isIsoDate(project.plannedEnd)) {
     return { ok: false, error: { code: 'shape', message: '工程日期格式不正確' } }
+  }
+  {
+    const span = dayCountInclusive(project.plannedStart, project.plannedEnd)
+    if (!Number.isFinite(span) || span < 1 || span > MAX_SHARE_PROJECT_DAYS) {
+      return { ok: false, error: { code: 'shape', message: '工程日期範圍不正確或過長' } }
+    }
   }
   if (typeof project.createdAt !== 'string' || typeof project.updatedAt !== 'string') {
     return { ok: false, error: { code: 'shape', message: '工程時間戳記缺失' } }
@@ -784,7 +1274,7 @@ function validateSnapshotShape(raw: Record<string, unknown>): ShareDecodeResult 
   // FR-006 warranty items are optional (older snapshots pre-date the feature).
   // We validate the array shape when present, but never reject the snapshot
   // for missing entries — defaults to `[]`.
-  let warranties: ShareWarranty[] = []
+  const warranties: ShareWarranty[] = []
   if (raw.warranties !== undefined) {
     if (!Array.isArray(raw.warranties)) {
       return { ok: false, error: { code: 'shape', message: '保固紀錄格式不正確' } }
