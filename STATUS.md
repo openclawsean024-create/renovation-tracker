@@ -2,7 +2,7 @@
 
 - Repo：`openclawsean024-create/renovation-tracker`（預設分支 `main`，public）
 - 基準 commit：`main` @ `9ceea39`；M1 開發分支 `feat/m1`（自 `chore/prd-rebuild` @ `344da4d` 開出）
-- 狀態：🟡 **M1（AC-001～AC-009）完成，Exit gate 全數通過；Codex 安全審查的 13 項已在本機修正，待推送、補跑例行審查並由 CI 驗證後再合併**：本機品質閘門、PR CI、獨立驗收，以及 Sean 覆審（合併清單、範圍與 UI）（2026-11-16）。PR `openclawsean024-create/renovation-tracker#2` 尚未合併；合併、部署、Notion 同步與 decoration-tracker 封存由 Sean 決定。
+- 狀態：🟡 **M1（AC-001～AC-009）完成，Exit gate 全數通過；Codex 安全審查的 13 項已修正並推送、CI 綠燈；待額度恢復後補跑修正後的例行審查，再合併**：本機品質閘門、PR CI、獨立驗收，以及 Sean 覆審（合併清單、範圍與 UI）（2026-11-16）。PR `openclawsean024-create/renovation-tracker#2` 尚未合併；合併、部署、Notion 同步與 decoration-tracker 封存由 Sean 決定。
 - 尚未做：merge、push 到 `main`、production deploy、Notion 同步、封存 decoration-tracker — 皆不在 agent session 內執行。
 - 規格：`PRD/SPEC.md` v5.1；目前里程碑：`GOAL.md`（M1）
 - 技術棧：Vite 5 + React 18 + TypeScript strict + IndexedDB（local-first，無後端）
@@ -190,9 +190,9 @@ decoration-tracker（只讀，未修改）：本 session 僅以 `gh api`／`gh r
 
 - 2026-11-22 嘗試執行，所有 Codex 帳號額度低於 20%（預設帳號 0%、「Waifdance」19%），腳本結束碼 3，審查沒有執行。額度恢復後需補跑。
 
-### 推送狀態
+### 推送與 CI
 
-- 上述 3 個修正 commit 與本次 STATUS 更新只在本機 `feat/m1`，**尚未推送**：`gh` 目前登入的帳號（`w63068925-sudo`）對此 repo 沒有寫入權限，push 回 403。PR #2 與其 CI 仍停在 `c845d04`。
+- 2026-11-22 改用 `openclawsean024-create` 登入後推送成功。PR #2 的 GitHub Actions run `44926668704`（commit `7b74251`）：`lint`、`test`、`build` 皆 success，`deploy` skipped（停用）。
 
 ## 待確認事項（沿用 GOAL.md 寫法，本次未自行決定）
 
