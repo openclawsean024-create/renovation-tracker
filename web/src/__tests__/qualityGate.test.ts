@@ -53,4 +53,28 @@ describe('AC-007 quality gate', () => {
     // flow mapping (`with: { ... }`); keep every `with:` in block style.
     expect(ci).not.toMatch(/with:\s*\{/)
   })
+
+  it('AC-007: each CI job runs its own check, and deploy stays disabled', () => {
+    const ci = read(resolve(repoRoot, '.github/workflows/ci.yml'))
+    // Split the workflow into its job blocks (two-space indented job names).
+    const jobsSection = ci.slice(ci.indexOf('\njobs:'))
+    const blocks: Record<string, string> = {}
+    const parts = jobsSection.split(/\n {2}(?=[a-z][\w-]*:\n)/)
+    for (const part of parts.slice(1)) {
+      const name = part.slice(0, part.indexOf(':'))
+      blocks[name] = part
+    }
+    expect(Object.keys(blocks).sort()).toEqual(['build', 'deploy', 'lint', 'test'])
+    const hasRun = (job: string, cmd: string) =>
+      new RegExp(`^\\s+- run: ${cmd}\\s*$`, 'm').test(blocks[job]!)
+    expect(hasRun('lint', 'npm run lint')).toBe(true)
+    expect(hasRun('lint', 'npm run typecheck')).toBe(true)
+    expect(hasRun('test', 'npm test')).toBe(true)
+    expect(hasRun('build', 'npm run build')).toBe(true)
+    for (const job of ['lint', 'test', 'build']) {
+      expect(blocks[job]).not.toMatch(/^\s+if:/m)
+      expect(hasRun(job, 'npm ci')).toBe(true)
+    }
+    expect(blocks.deploy).toMatch(/^\s+if: \$\{\{ false \}\}\s*$/m)
+  })
 })

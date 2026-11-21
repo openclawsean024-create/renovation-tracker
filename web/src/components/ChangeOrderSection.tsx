@@ -246,9 +246,13 @@ export function ChangeOrderSection() {
         onCancel={() => setPendingDelete(null)}
         onConfirm={() => {
           if (!pendingDelete) return
+          setActionError(null)
           deleteChangeOrder(pendingDelete.id)
             .then(() => setPendingDelete(null))
-            .catch(() => undefined)
+            .catch((err: unknown) => {
+              setPendingDelete(null)
+              setActionError(`無法刪除變更單：${err instanceof Error ? err.message : String(err)}，資料未變更`)
+            })
         }}
       />
     </section>

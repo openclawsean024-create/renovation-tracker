@@ -39,6 +39,9 @@ export function AcceptanceSection() {
   } = useDashboard()
   const [form, setForm] = useState<FormState>({ mode: 'closed' })
   const [pendingDelete, setPendingDelete] = useState<AcceptanceItem | null>(null)
+  // Writes that fail (IndexedDB error, record changed in another tab) are
+  // reported here instead of being swallowed.
+  const [actionError, setActionError] = useState<string | null>(null)
 
   const overall = useMemo(() => summarizeAcceptance(acceptanceItems), [acceptanceItems])
   const byStage = useMemo(() => summarizeAcceptanceByStage(acceptanceItems), [acceptanceItems])
@@ -55,6 +58,12 @@ export function AcceptanceSection() {
           </p>
         </div>
       </div>
+
+      {actionError ? (
+        <p className="record-alert" role="alert" data-testid="acceptance-action-error">
+          {actionError}
+        </p>
+      ) : null}
 
       {stages.length === 0 ? (
         <div className="empty-state" data-testid="acceptance-empty-state">
@@ -122,7 +131,10 @@ export function AcceptanceSection() {
                               type="checkbox"
                               checked={item.passed}
                               onChange={() => {
-                                toggleAcceptanceItem(item.id).catch(() => undefined)
+                                setActionError(null)
+                                toggleAcceptanceItem(item.id).catch((err: unknown) =>
+                                  setActionError(`無法更新驗收項目「${item.name}」：${err instanceof Error ? err.message : String(err)}`),
+                                )
                               }}
                               aria-label={`驗收通過：${item.name}`}
                               data-testid={`acceptance-toggle-${item.id}`}
@@ -208,7 +220,10 @@ export function AcceptanceSection() {
           if (!pendingDelete) return
           deleteAcceptanceItem(pendingDelete.id)
             .then(() => setPendingDelete(null))
-            .catch(() => undefined)
+            .catch((err: unknown) => {
+              setPendingDelete(null)
+              setActionError(`無法刪除驗收項目：${err instanceof Error ? err.message : String(err)}，資料未變更`)
+            })
         }}
       />
     </section>
