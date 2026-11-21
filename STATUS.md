@@ -2,7 +2,7 @@
 
 - Repo：`openclawsean024-create/renovation-tracker`（預設分支 `main`，public）
 - 基準 commit：`main` @ `9ceea39`；M1 開發分支 `feat/m1`（自 `chore/prd-rebuild` @ `344da4d` 開出）
-- 狀態：🟢 **M1（AC-001～AC-009）完成，Exit gate 全數通過**：本機品質閘門、PR CI、獨立驗收，以及 Sean 覆審（合併清單、範圍與 UI）（2026-11-16）。PR `openclawsean024-create/renovation-tracker#2` 尚未合併；合併、部署、Notion 同步與 decoration-tracker 封存由 Sean 決定。
+- 狀態：🟡 **M1（AC-001～AC-009）完成，Exit gate 全數通過；Codex 安全審查的 13 項已在本機修正，待推送、補跑例行審查並由 CI 驗證後再合併**：本機品質閘門、PR CI、獨立驗收，以及 Sean 覆審（合併清單、範圍與 UI）（2026-11-16）。PR `openclawsean024-create/renovation-tracker#2` 尚未合併；合併、部署、Notion 同步與 decoration-tracker 封存由 Sean 決定。
 - 尚未做：merge、push 到 `main`、production deploy、Notion 同步、封存 decoration-tracker — 皆不在 agent session 內執行。
 - 規格：`PRD/SPEC.md` v5.1；目前里程碑：`GOAL.md`（M1）
 - 技術棧：Vite 5 + React 18 + TypeScript strict + IndexedDB（local-first，無後端）
@@ -159,6 +159,40 @@ decoration-tracker（只讀，未修改）：本 session 僅以 `gh api`／`gh r
 4. **低**：竄改的連結錯誤頁會露出瀏覽器原始英文例外訊息（既有行為）。
 5. **低**：照片沒填說明時，照片進度回報以檔名代替說明，檔名可能含不想顯示的資訊。
 6. **資訊**：`npm audit` 回報 17 個弱點（含 2 critical），未確認是否只影響 dev 相依。
+
+## Codex 交叉審查（2026-11-22）
+
+### 第 1 次：安全審查（astra, high）
+
+- 範圍：`git diff 344da4d..c845d04`（M1 全部程式改動）。
+- 帳號／模型：Zook 帳號「Waifdance」、`gpt-6.2-astra`、思考強度 high，約 134,922 token（Codex 預設帳號額度 0%，依規則跳過）。
+- 結果：3 high、7 medium、3 low，全部判定為真問題並已修正（commit `d34cdfd`、`7e939e0`、`753b7c0`），每項都補了在舊程式上會失敗的測試。
+
+| 嚴重度 | 問題 | 修正 | 測試 |
+|---|---|---|---|
+| High | 過期分頁可覆寫已核准的變更單或改回 pending | 編輯／決定改為在同一個 IndexedDB transaction 內讀取並檢查已存資料 | `staleTabs.test.tsx` |
+| High | 取消個資勾選時網址列更新失敗，對話框仍可複製含個資的連結 | 勾選框與可複製連結一起更新；網址列失敗只顯示提示 | `Dashboard.shareDialog.test.tsx` |
+| High | 載入時讀入其他工程的變更單與驗收；兩分頁可同時 seed 出兩個工程 | 只載入所選工程的資料；首次 seed 改為原子操作 | `staleTabs.test.tsx` |
+| Medium | 過期分頁更新工程狀態會把已清除的地址寫回 | 工程更新合併進已存資料（transaction） | `staleTabs.test.tsx` |
+| Medium | `0.0000001` 被當成 0 位小數；`1e307` 使總額變 Infinity | 小數位數先處理科學記號；金額上限 1e12 | 變更單／合約 domain 與表單測試 |
+| Medium | v2 連結可在「不含聯絡方式」標示下夾帶個資 | v2 個資標示須與內容一致，否則顯示錯誤頁 | `shareDecode.hardening.test.ts` |
+| Medium | 解碼器接受 0 金額、負合約、小數照片數、通過數大於總數、對不上的總額 | 金額、整數、`passed ≤ total`、總額一致性檢查 | `shareDecode.hardening.test.ts` |
+| Medium | 超長工程期間的連結會讓唯讀頁凍結（v1 既有） | 解碼時限制約 10 年並驗證日期；甘特圖也加保護 | `shareDecode.hardening.test.ts` |
+| Medium | 舊分頁持有 v5 時 v6 開啟直接失敗且被快取 | 等待舊分頁關閉、顯示提示、失敗不快取 | `changeOrders.db.test.ts` |
+| Medium | 刪階段與刪驗收項目分兩個 transaction；過期分頁可對已刪階段新增項目 | 同一 transaction 刪除；新增時在 transaction 內檢查階段 | `staleTabs.test.tsx` |
+| Low | 頁面已有 `#keep=1` 時產生的連結會開成編輯模式 | 改用 `buildShareUrl` | `Dashboard.shareDialog.test.tsx` |
+| Low | 驗收勾選與刪除失敗時錯誤被吞掉 | 顯示錯誤並保留資料 | `Dashboard.writeErrors.test.tsx` |
+| Low | CI 測試只比對整檔文字；v1 測試用現行 encoder 產生 fixture | 依 job 檢查指令與 deploy 停用；改用固定 v1 hash | `qualityGate.test.ts`、`shareDecode.hardening.test.ts` |
+
+修正後本機（Node v26.13.1，`web/`）：`npm run lint` exit 0（0 errors、5 warnings）、`npm run typecheck` exit 0、`npm test` 44 檔／666 tests 全過、`npm run build` exit 0。
+
+### 第 2 次：修正後的例行審查（sol, medium）— 未執行
+
+- 2026-11-22 嘗試執行，所有 Codex 帳號額度低於 20%（預設帳號 0%、「Waifdance」19%），腳本結束碼 3，審查沒有執行。額度恢復後需補跑。
+
+### 推送狀態
+
+- 上述 3 個修正 commit 與本次 STATUS 更新只在本機 `feat/m1`，**尚未推送**：`gh` 目前登入的帳號（`w63068925-sudo`）對此 repo 沒有寫入權限，push 回 403。PR #2 與其 CI 仍停在 `c845d04`。
 
 ## 待確認事項（沿用 GOAL.md 寫法，本次未自行決定）
 
