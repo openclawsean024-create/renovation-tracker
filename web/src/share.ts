@@ -28,6 +28,16 @@ import {
   warrantyDateStatus,
 } from './warranty'
 import { buildPhotoReport } from './photoReport'
+import { sumApprovedChangeOrders, validateChangeOrderInput } from './changeOrders'
+import { validateContractInput } from './contract'
+import { fractionDigitsOf } from './budget'
+import { dayCountInclusive } from './dates'
+import { MAX_BUDGET_DECIMALS, MAX_MONEY_AMOUNT, roundBudgetAmount } from './types'
+
+/** Longest project window a share link may describe (about ten years). The
+ *  read-only page renders one cell per day, so an absurd range in a crafted
+ *  link must be rejected before anything is laid out. */
+export const MAX_SHARE_PROJECT_DAYS = 3660
 
 /** Current snapshot version. Bump when an incompatible change is shipped.
  *  Unknown versions are rejected by `decodeShareHash` (AC-FR004-04).
@@ -787,6 +797,19 @@ export function decodeShareHash(hash: string | undefined | null): ShareDecodeRes
   if (!extras.ok) {
     return { ok: false, error: extras.error }
   }
+  if (candidate.version >= 2) {
+    // A v2 link must not carry personal data its privacy marker says is
+    // absent (a crafted link could otherwise show contact details under a
+    // 「不含聯絡方式」 notice). A missing marker means "nothing included".
+    const privacy = extras.sections.privacy ?? { includesAddress: false, includesContacts: false }
+    const hasAddress = validated.snapshot.project.address !== undefined
+    const hasContacts =
+      (extras.sections.scheduleContacts?.length ?? 0) > 0 ||
+      (validated.snapshot.warranties ?? []).some((w) => w.contact !== undefined)
+    if ((hasAddress && !privacy.includesAddress) || (hasContacts && !privacy.includesContacts)) {
+      return { ok: false, error: { code: 'shape', message: '分享連結的個資設定與內容不一致' } }
+    }
+  }
   return {
     ok: true,
     // Keep the version the link was created with so the viewer can tell a
@@ -824,7 +847,17 @@ function isFiniteNumber(value: unknown): value is number {
 }
 
 function isCount(value: unknown): value is number {
-  return isFiniteNumber(value) && value >= 0
+  return isFiniteNumber(value) && Number.isInteger(value) && value >= 0
+}
+
+/** A signed money figure as the builder can produce it: finite, at most two
+ *  decimals and inside the representable range. */
+function isMoney(value: unknown): value is number {
+  return (
+    isFiniteNumber(value) &&
+    Math.abs(value) < MAX_MONEY_AMOUNT * 2 &&
+    fractionDigitsOf(value) <= MAX_BUDGET_DECIMALS
+  )
 }
 
 type V2Sections = Pick<
@@ -879,6 +912,9 @@ function validateV2Sections(
         return shapeError('變更單標題缺失')
       }
       if (!isFiniteNumber(item.amount)) return shapeError('變更單金額不正確')
+      if (!validateChangeOrderInput({ title: item.title, amount: item.amount }).ok) {
+        return shapeError('變更單金額不正確')
+      }
       if (!isOneOf(item.status, CHANGE_ORDER_STATUSES)) return shapeError('變更單狀態不正確')
       const order: ShareChangeOrder = {
         id: item.id,
@@ -906,8 +942,34 @@ function validateV2Sections(
       'outstanding',
     ]) {
       if (!isFiniteNumber(c[key])) return shapeError(`合約收款概要欄位 ${key} 缺失`)
+      if (!isMoney(c[key])) return shapeError(`合約收款概要欄位 ${key} 不正確`)
     }
     if (typeof c.isOverpaid !== 'boolean') return shapeError('合約收款概要欄位 isOverpaid 缺失')
+    // Base figures follow the same rules as the editor; derived figures must
+    // match them, so a crafted link cannot show arbitrary totals.
+    if (
+      !validateContractInput({
+        contractAmount: c.contractAmount as number,
+        receivedAmount: c.receivedAmount as number,
+      }).ok
+    ) {
+      return shapeError('合約金額不正確')
+    }
+    const adjusted = roundBudgetAmount((c.contractAmount as number) + (c.approvedChangeTotal as number))
+    const outstanding = roundBudgetAmount(adjusted - (c.receivedAmount as number))
+    if (
+      c.adjustedTotal !== adjusted ||
+      c.outstanding !== outstanding ||
+      c.isOverpaid !== outstanding < 0
+    ) {
+      return shapeError('合約收款概要的金額彼此不一致')
+    }
+    if (
+      sections.changeOrders !== undefined &&
+      c.approvedChangeTotal !== sumApprovedChangeOrders(sections.changeOrders)
+    ) {
+      return shapeError('已核准變更合計與變更單不一致')
+    }
     sections.contractSummary = {
       contractAmount: c.contractAmount as number,
       approvedChangeTotal: c.approvedChangeTotal as number,
@@ -920,7 +982,13 @@ function validateV2Sections(
 
   if (raw.acceptanceSummary !== undefined) {
     const a = raw.acceptanceSummary
-    if (!isPlainObject(a) || !isCount(a.total) || !isCount(a.passed) || !Array.isArray(a.stages)) {
+    if (
+      !isPlainObject(a) ||
+      !isCount(a.total) ||
+      !isCount(a.passed) ||
+      a.passed > a.total ||
+      !Array.isArray(a.stages)
+    ) {
       return shapeError('驗收進度格式不正確')
     }
     const stages: ShareAcceptanceStage[] = []
@@ -930,6 +998,7 @@ function validateV2Sections(
         !isShareStageRef(item.stageId) ||
         !isCount(item.total) ||
         !isCount(item.passed) ||
+        item.passed > item.total ||
         typeof item.hasWarning !== 'boolean'
       ) {
         return shapeError('驗收階段資料格式不正確')
@@ -1011,6 +1080,12 @@ function validateSnapshotShape(raw: Record<string, unknown>): ShareDecodeResult 
   }
   if (!isIsoDate(project.plannedStart) || !isIsoDate(project.plannedEnd)) {
     return { ok: false, error: { code: 'shape', message: '工程日期格式不正確' } }
+  }
+  {
+    const span = dayCountInclusive(project.plannedStart, project.plannedEnd)
+    if (!Number.isFinite(span) || span < 1 || span > MAX_SHARE_PROJECT_DAYS) {
+      return { ok: false, error: { code: 'shape', message: '工程日期範圍不正確或過長' } }
+    }
   }
   if (typeof project.createdAt !== 'string' || typeof project.updatedAt !== 'string') {
     return { ok: false, error: { code: 'shape', message: '工程時間戳記缺失' } }

@@ -174,3 +174,22 @@ describe('AC-001 change order decisions', () => {
     expect(CHANGE_ORDER_LOCAL_NOTICE).toBe('本機紀錄，非屋主線上簽核')
   })
 })
+
+describe('AC-001 amount edge cases (Codex review)', () => {
+  it('AC-001: rejects tiny amounts written in exponent form (e.g. 0.0000001)', () => {
+    for (const amount of [0.0000001, -0.0000001, 1.5e-7]) {
+      const result = validateChangeOrderInput({ title: '示範', amount })
+      expect(result.ok).toBe(false)
+      expect(result.errors).toEqual([{ field: 'amount', message: '金額最多兩位小數' }])
+    }
+  })
+
+  it('AC-001: rejects amounts too large to total safely (e.g. 1e307)', () => {
+    for (const amount of [1e307, -1e307, 1_000_000_000_000]) {
+      const result = validateChangeOrderInput({ title: '示範', amount })
+      expect(result.ok).toBe(false)
+      expect(result.errors).toEqual([{ field: 'amount', message: '金額超出可記錄範圍' }])
+    }
+    expect(validateChangeOrderInput({ title: '示範', amount: 999_999_999_999.99 }).ok).toBe(true)
+  })
+})

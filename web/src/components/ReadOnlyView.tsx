@@ -6,9 +6,14 @@
 // share test suite.
 
 import { useMemo } from 'react'
-import { displayDate, monthSpans } from '../dates'
+import { dayCountInclusive, displayDate, monthSpans } from '../dates'
 import { dayGridTemplate } from '../gantt'
-import { SHARE_HASH_KEY, type ShareSnapshot, type ShareWarranty } from '../share'
+import {
+  MAX_SHARE_PROJECT_DAYS,
+  SHARE_HASH_KEY,
+  type ShareSnapshot,
+  type ShareWarranty,
+} from '../share'
 import {
   CHANGE_ORDER_STATUS_LABELS,
   PHOTO_KIND_LABELS,
@@ -705,6 +710,12 @@ function ReadOnlyBanner({ sourceUrl }: { sourceUrl: string }) {
 function ReadOnlyGantt({ project, stages }: { project: Project; stages: Stage[] }) {
   const ganttLayout = useMemo(() => {
     const days: string[] = []
+    // Defence in depth: the decoder already rejects longer windows, but never
+    // allocate one cell per day for an absurd range.
+    const span = dayCountInclusive(project.plannedStart, project.plannedEnd)
+    if (!Number.isFinite(span) || span < 1 || span > MAX_SHARE_PROJECT_DAYS) {
+      return { days, rows: [], totalDays: 0 }
+    }
     const cur = new Date(
       parseInt(project.plannedStart.slice(0, 4), 10),
       parseInt(project.plannedStart.slice(5, 7), 10) - 1,

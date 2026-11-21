@@ -13,6 +13,7 @@ import { fractionDigitsOf } from './budget'
 import {
   CHANGE_ORDER_STATUSES,
   MAX_BUDGET_DECIMALS,
+  MAX_MONEY_AMOUNT,
   roundBudgetAmount,
   type ChangeOrder,
   type ChangeOrderEditInput,
@@ -60,6 +61,8 @@ export function validateChangeOrderInput(
     errors.push({ field: 'amount', message: '金額必須是有限數字' })
   } else if (amount === 0) {
     errors.push({ field: 'amount', message: '金額不可為 0' })
+  } else if (Math.abs(amount) >= MAX_MONEY_AMOUNT) {
+    errors.push({ field: 'amount', message: '金額超出可記錄範圍' })
   } else if (fractionDigitsOf(amount) > MAX_BUDGET_DECIMALS) {
     errors.push({ field: 'amount', message: '金額最多兩位小數' })
   }

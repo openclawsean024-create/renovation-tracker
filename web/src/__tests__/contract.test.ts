@@ -133,3 +133,20 @@ describe('AC-002 contract validation', () => {
     expect(result.errors).toEqual([{ field: 'receivedAmount', message: '金額必須是有限數字' }])
   })
 })
+
+describe('AC-002 amount edge cases (Codex review)', () => {
+  it('AC-002: rejects tiny amounts written in exponent form', () => {
+    const result = validateContractInput({ contractAmount: 0.0000001, receivedAmount: 0 })
+    expect(result.ok).toBe(false)
+    expect(result.errors).toEqual([{ field: 'contractAmount', message: '金額最多兩位小數' }])
+  })
+
+  it('AC-002: rejects amounts too large to total safely', () => {
+    const result = validateContractInput({ contractAmount: 1e307, receivedAmount: 1e12 })
+    expect(result.ok).toBe(false)
+    expect(result.errors).toEqual([
+      { field: 'contractAmount', message: '金額超出可記錄範圍' },
+      { field: 'receivedAmount', message: '金額超出可記錄範圍' },
+    ])
+  })
+})

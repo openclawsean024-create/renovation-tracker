@@ -158,6 +158,11 @@ export const PAYMENT_STATUS_TONE: Record<PaymentStatus, string> = {
  *  two decimal places so totals never drift due to floating-point artefacts. */
 export const MAX_BUDGET_DECIMALS = 2
 
+/** Upper bound (exclusive, absolute value) for M1 money amounts — contract,
+ *  received and change-order amounts. Far above any renovation contract, and
+ *  low enough that sums stay finite and exactly representable to the cent. */
+export const MAX_MONEY_AMOUNT = 1_000_000_000_000
+
 /** Rounding helper used before persisting amounts so the stored value never
  *  exceeds two decimal places. */
 export function roundBudgetAmount(value: number): number {

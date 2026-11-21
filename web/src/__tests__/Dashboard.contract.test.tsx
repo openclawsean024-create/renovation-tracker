@@ -155,6 +155,8 @@ describe('AC-002 contract & receipts on the dashboard', () => {
     ['100', '-5', 'contract-received-error', '金額不可為負數'],
     ['100', '1.999', 'contract-received-error', '金額最多兩位小數'],
     ['100', '', 'contract-received-error', '金額必須是有限數字'],
+    ['1e-7', '0', 'contract-amount-error', '金額最多兩位小數'],
+    ['1e307', '0', 'contract-amount-error', '金額超出可記錄範圍'],
   ])(
     'AC-002: invalid amounts (contract %j, received %j) show an error and write nothing',
     async (contractAmount, receivedAmount, errorId, message) => {

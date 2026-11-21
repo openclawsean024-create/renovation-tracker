@@ -122,6 +122,8 @@ describe('AC-001 change orders on the dashboard', () => {
     ['', '金額必須是有限數字'],
     ['12.345', '金額最多兩位小數'],
     ['-12.345', '金額最多兩位小數'],
+    ['1e-7', '金額最多兩位小數'],
+    ['1e307', '金額超出可記錄範圍'],
   ])('AC-001: amount %j shows 「%s」 and writes nothing', async (amount, message) => {
     await renderDashboard()
     const dialog = await openForm()

@@ -7,6 +7,7 @@ import { fractionDigitsOf } from './budget'
 import { sumApprovedChangeOrders } from './changeOrders'
 import {
   MAX_BUDGET_DECIMALS,
+  MAX_MONEY_AMOUNT,
   roundBudgetAmount,
   type ChangeOrder,
   type ContractSummaryInput,
@@ -33,6 +34,10 @@ function validateAmount(
   }
   if (value < 0) {
     out.push({ field, message: '金額不可為負數' })
+    return
+  }
+  if (value >= MAX_MONEY_AMOUNT) {
+    out.push({ field, message: '金額超出可記錄範圍' })
     return
   }
   if (fractionDigitsOf(value) > MAX_BUDGET_DECIMALS) {
