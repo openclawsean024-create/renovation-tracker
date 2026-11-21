@@ -83,16 +83,42 @@ export function openDb(): Promise<IDBDatabase> {
         acceptanceStore.createIndex('byStageId', 'stageId', { unique: false })
       }
     }
-    req.onsuccess = () => resolve(req.result)
-    req.onerror = () => reject(req.error ?? new Error('indexedDB.open failed'))
-    req.onblocked = () => reject(new Error('indexedDB.open blocked'))
+    req.onsuccess = () => {
+      const db = req.result
+      // When a newer version is opened elsewhere (another tab after an
+      // upgrade), release this connection so that upgrade is not blocked.
+      db.onversionchange = () => {
+        db.close()
+        cachedDb = null
+      }
+      resolve(db)
+    }
+    req.onerror = () => {
+      // Do not cache a failed open: the next call must try again.
+      cachedDb = null
+      reject(req.error ?? new Error('indexedDB.open failed'))
+    }
+    // An older tab still holds the previous version. The request stays
+    // pending and completes on its own once that tab closes its connection,
+    // so `blocked` is not treated as a failure (the caller keeps waiting).
+    req.onblocked = () => {
+      dbBlocked = true
+    }
   })
   return cachedDb
+}
+
+let dbBlocked = false
+
+/** True while opening is waiting for an older tab to release the database. */
+export function isDbUpgradeBlocked(): boolean {
+  return dbBlocked
 }
 
 /** Force the cached database to be re-opened — used by tests. */
 export function resetDbCache(): void {
   cachedDb = null
+  dbBlocked = false
 }
 
 /** Drop the cached database connection and close it — used by tests. */
@@ -139,6 +165,79 @@ function reqAsPromise<T>(req: IDBRequest<T>): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     req.onsuccess = () => resolve(req.result)
     req.onerror = () => reject(req.error ?? new Error('request failed'))
+  })
+}
+
+/** Raised inside a transactional update when the stored record forbids it. */
+export class RecordConflictError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'RecordConflictError'
+  }
+}
+
+/**
+ * Read one record, let `mutate` decide the new value from what is *stored*
+ * (not from a possibly stale in-memory copy), and write it — all inside a
+ * single readwrite transaction. If `mutate` throws, nothing is written and the
+ * error is passed to the caller unchanged. Used wherever two tabs could race
+ * (change-order decisions, project patches, acceptance toggles).
+ */
+export async function mutateRecord<T>(
+  storeName: string,
+  key: IDBValidKey,
+  mutate: (current: T | undefined) => T,
+): Promise<T> {
+  const db = await openDb()
+  return new Promise<T>((resolve, reject) => {
+    const tx = db.transaction([storeName], 'readwrite')
+    const store = tx.objectStore(storeName)
+    let next: T | undefined
+    let failure: unknown
+    const getReq = store.get(key)
+    getReq.onsuccess = () => {
+      try {
+        next = mutate(getReq.result as T | undefined)
+        store.put(next)
+      } catch (err) {
+        failure = err
+        try {
+          tx.abort()
+        } catch {
+          /* already finished */
+        }
+      }
+    }
+    tx.oncomplete = () => resolve(next as T)
+    tx.onabort = () =>
+      reject(failure ?? tx.error ?? new Error('transaction aborted'))
+    tx.onerror = () => {
+      if (failure === undefined) reject(tx.error ?? new Error('transaction error'))
+    }
+  })
+}
+
+/**
+ * Seed a first-run project and its stages atomically: only if the projects
+ * store is still empty when the transaction runs. Two tabs opening an empty
+ * database at the same time therefore produce one project, not two.
+ * Returns true when this call wrote the seed.
+ */
+export async function seedIfEmpty(project: Project, stages: Stage[]): Promise<boolean> {
+  const db = await openDb()
+  return new Promise<boolean>((resolve, reject) => {
+    const tx = db.transaction([STORE_PROJECTS, STORE_STAGES], 'readwrite')
+    let seeded = false
+    const countReq = tx.objectStore(STORE_PROJECTS).count()
+    countReq.onsuccess = () => {
+      if (countReq.result > 0) return
+      seeded = true
+      tx.objectStore(STORE_PROJECTS).put(project)
+      for (const stage of stages) tx.objectStore(STORE_STAGES).put(stage)
+    }
+    tx.oncomplete = () => resolve(seeded)
+    tx.onerror = () => reject(tx.error ?? new Error('transaction error'))
+    tx.onabort = () => reject(tx.error ?? new Error('transaction aborted'))
   })
 }
 
@@ -519,7 +618,51 @@ export async function getAcceptanceItemsByStage(stageId: string): Promise<Accept
   })
 }
 
-/** Remove every acceptance item of one stage — used when the stage is deleted. */
+/**
+ * Delete a stage and all of its acceptance items in ONE transaction, so an
+ * interrupted delete can never leave orphaned items that still count in the
+ * acceptance totals or in a share link.
+ */
+export async function deleteStageWithAcceptance(stageId: string): Promise<void> {
+  const db = await openDb()
+  await runTx(db, [STORE_STAGES, STORE_ACCEPTANCE_ITEMS], 'readwrite', (tx) => {
+    tx.objectStore(STORE_STAGES).delete(stageId)
+    const req = tx.objectStore(STORE_ACCEPTANCE_ITEMS).index('byStageId').openCursor(stageId)
+    req.onsuccess = () => {
+      const cursor = req.result
+      if (!cursor) return
+      cursor.delete()
+      cursor.continue()
+    }
+  })
+}
+
+/**
+ * Add an acceptance item only if its stage still exists in the same project
+ * when the transaction runs (a stale tab must not attach items to a stage
+ * that was deleted elsewhere).
+ */
+export async function putAcceptanceItemIfStageExists(item: AcceptanceItem): Promise<void> {
+  const db = await openDb()
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction([STORE_STAGES, STORE_ACCEPTANCE_ITEMS], 'readwrite')
+    let failure: unknown
+    const stageReq = tx.objectStore(STORE_STAGES).get(item.stageId)
+    stageReq.onsuccess = () => {
+      const stage = stageReq.result as Stage | undefined
+      if (!stage || stage.projectId !== item.projectId) {
+        failure = new RecordConflictError('找不到對應的階段，可能已在其他分頁刪除')
+        tx.abort()
+        return
+      }
+      tx.objectStore(STORE_ACCEPTANCE_ITEMS).put(item)
+    }
+    tx.oncomplete = () => resolve()
+    tx.onabort = () => reject(failure ?? tx.error ?? new Error('transaction aborted'))
+  })
+}
+
+/** Remove every acceptance item of one stage. */
 export async function deleteAcceptanceItemsByStage(stageId: string): Promise<void> {
   const db = await openDb()
   await runTx(db, [STORE_ACCEPTANCE_ITEMS], 'readwrite', (tx) => {

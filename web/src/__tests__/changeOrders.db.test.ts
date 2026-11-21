@@ -12,6 +12,7 @@ import {
   getAllProjects,
   getAllStages,
   getChangeOrdersByProject,
+  isDbUpgradeBlocked,
   openDb,
   putBudget,
   putChangeOrder,
@@ -188,5 +189,46 @@ describe('AC-001 change orders — IndexedDB', () => {
     expect(await getAllProjects()).toEqual([])
     expect(await getAllStages()).toEqual([])
     expect(await getAllBudgets()).toEqual([])
+  })
+})
+
+describe('AC-001 schema v6 upgrade with an older tab still open (Codex review)', () => {
+  it('AC-001: upgrade waits for the old v5 connection instead of failing, then loads', async () => {
+    // An "older tab": a v5 connection that does not react to versionchange.
+    const oldTab = await new Promise<IDBDatabase>((resolve, reject) => {
+      const req = indexedDB.open('renovation-tracker', 5)
+      req.onupgradeneeded = () => {
+        const db = req.result
+        db.createObjectStore(STORE_PROJECTS, { keyPath: 'id' })
+        for (const name of [STORE_STAGES, 'photos', STORE_BUDGETS, 'schedules', 'warranties']) {
+          db.createObjectStore(name, { keyPath: 'id' }).createIndex('byProjectId', 'projectId')
+        }
+      }
+      req.onsuccess = () => resolve(req.result)
+      req.onerror = () => reject(req.error)
+    })
+    resetDbCache()
+
+    let settled: 'resolved' | 'rejected' | null = null
+    const opening = openDb().then(
+      (db) => {
+        settled = 'resolved'
+        return db
+      },
+      (err: unknown) => {
+        settled = 'rejected'
+        throw err
+      },
+    )
+    await new Promise((r) => setTimeout(r, 50))
+    expect(settled).toBeNull()
+    expect(isDbUpgradeBlocked()).toBe(true)
+
+    oldTab.close()
+    const db = await opening
+    expect(settled).toBe('resolved')
+    expect(db.version).toBe(6)
+    await putChangeOrder(mk())
+    expect(await getAllChangeOrders()).toHaveLength(1)
   })
 })

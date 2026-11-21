@@ -15,12 +15,10 @@ import {
 } from 'react'
 import {
   deleteAcceptanceItem as dbDeleteAcceptanceItem,
-  deleteAcceptanceItemsByStage,
   deleteBudget as dbDeleteBudget,
   deleteChangeOrder as dbDeleteChangeOrder,
   deletePhoto as dbDeletePhoto,
   deleteSchedule as dbDeleteSchedule,
-  deleteStage as dbDeleteStage,
   deleteStagesByProject,
   deleteWarranty as dbDeleteWarranty,
   getAllAcceptanceItems,
@@ -32,15 +30,21 @@ import {
   getAllSchedules,
   getAllStages,
   getAllWarranties,
-  putAcceptanceItem,
   putBudget,
   putChangeOrder,
   putContract,
   putPhoto,
-  putProject,
   putSchedule,
   putStage,
   putWarranty,
+  RecordConflictError,
+  STORE_ACCEPTANCE_ITEMS,
+  STORE_CHANGE_ORDERS,
+  STORE_PROJECTS,
+  deleteStageWithAcceptance,
+  mutateRecord,
+  putAcceptanceItemIfStageExists,
+  seedIfEmpty,
 } from './db'
 import { buildSeed, SEED_STAGE_NAMES } from './seed'
 import { compareStageOrder } from './status'
@@ -396,6 +400,32 @@ export function DashboardProvider({ children, clock, idFactory }: DashboardProvi
     ;(async () => {
       dispatch({ type: 'load/start' })
       try {
+        const readAll = () =>
+          Promise.all([
+            getAllProjects(),
+            getAllStages(),
+            getAllPhotos(),
+            getAllBudgets(),
+            getAllSchedules(),
+            getAllWarranties(),
+            getAllChangeOrders(),
+            getAllContracts(),
+            getAllAcceptanceItems(),
+          ])
+        let all = await readAll()
+        if (cancelled) return
+        if (all[0].length === 0) {
+          // First run — seed atomically (only if still empty), so two tabs
+          // opening an empty database cannot create two projects.
+          const seed = buildSeed({
+            idFactory: idFactory ?? (() => newId(idFactory)),
+            now: () => nowISO(clock),
+          })
+          await seedIfEmpty(seed.project, seed.stages)
+          if (cancelled) return
+          all = await readAll()
+          if (cancelled) return
+        }
         const [
           projects,
           stages,
@@ -406,58 +436,34 @@ export function DashboardProvider({ children, clock, idFactory }: DashboardProvi
           changeOrders,
           contracts,
           acceptanceItems,
-        ] = await Promise.all([
-          getAllProjects(),
-          getAllStages(),
-          getAllPhotos(),
-          getAllBudgets(),
-          getAllSchedules(),
-          getAllWarranties(),
-          getAllChangeOrders(),
-          getAllContracts(),
-          getAllAcceptanceItems(),
-        ])
-        if (cancelled) return
-        if (projects.length === 0) {
-          // First run — seed the database.
-          const seed = buildSeed({
-            idFactory: idFactory ?? (() => newId(idFactory)),
-            now: () => nowISO(clock),
-          })
-          await putProject(seed.project)
-          for (const stage of seed.stages) {
-            await putStage(stage)
-          }
-          if (cancelled) return
-          dispatch({
-            type: 'load/success',
-            project: seed.project,
-            stages: seed.stages,
-            photos: [],
-            budgets: [],
-            schedules: [],
-            warranties: [],
-            changeOrders: [],
-            contract: null,
-            acceptanceItems: [],
-          })
-        } else {
-          const project = projects[0] ?? null
-          dispatch({
-            type: 'load/success',
-            project,
-            stages,
-            photos,
-            budgets,
-            schedules,
-            warranties,
-            changeOrders,
-            contract: project
-              ? (contracts.find((c) => c.projectId === project.id) ?? null)
-              : null,
-            acceptanceItems,
-          })
-        }
+        ] = all
+        // Single-project app: pick the oldest project deterministically and
+        // only load records that belong to it, so data of any other project in
+        // the same database never leaks into totals or share links.
+        const project =
+          projects
+            .slice()
+            .sort((a, b) =>
+              a.createdAt !== b.createdAt
+                ? a.createdAt < b.createdAt ? -1 : 1
+                : a.id < b.id ? -1 : a.id > b.id ? 1 : 0,
+            )[0] ?? null
+        const own = <T extends { projectId: string }>(rows: T[]) =>
+          project ? rows.filter((r) => r.projectId === project.id) : []
+        dispatch({
+          type: 'load/success',
+          project,
+          stages: own(stages),
+          photos: own(photos),
+          budgets: own(budgets),
+          schedules: own(schedules),
+          warranties: own(warranties),
+          changeOrders: own(changeOrders),
+          contract: project
+            ? (contracts.find((c) => c.projectId === project.id) ?? null)
+            : null,
+          acceptanceItems: own(acceptanceItems),
+        })
       } catch (err) {
         if (cancelled) return
         dispatch({
@@ -565,9 +571,8 @@ export function DashboardProvider({ children, clock, idFactory }: DashboardProvi
 
   const deleteStage = useCallback<DashboardActions['deleteStage']>(
     async (id) => {
-      await dbDeleteStage(id)
-      // FR-009: acceptance items cannot outlive their stage.
-      await deleteAcceptanceItemsByStage(id)
+      // FR-009: acceptance items cannot outlive their stage — one transaction.
+      await deleteStageWithAcceptance(id)
       dispatch({ type: 'stage/delete', id })
       dispatch({ type: 'acceptance/deleteByStage', stageId: id })
     },
@@ -576,17 +581,19 @@ export function DashboardProvider({ children, clock, idFactory }: DashboardProvi
 
   const updateProject = useCallback<DashboardActions['updateProject']>(
     async (patch) => {
-      const current = state.project
-      if (!current) throw new Error('尚無工程資料')
-      const next: Project = {
-        ...current,
-        ...patch,
-        updatedAt: nowISO(clock),
-      }
-      // Clearing the address removes the field entirely, so nothing about it
-      // is stored or shared (AC-005).
-      if ('address' in patch && !patch.address) delete next.address
-      await putProject(next)
+      const known = state.project
+      if (!known) throw new Error('尚無工程資料')
+      const updatedAt = nowISO(clock)
+      // Merge the patch into the record as currently STORED, so a stale tab
+      // changing one field cannot restore other fields (e.g. a cleared
+      // address) from its out-of-date copy.
+      const next = await mutateRecord<Project>(STORE_PROJECTS, known.id, (stored) => {
+        const merged: Project = { ...(stored ?? known), ...patch, updatedAt }
+        // Clearing the address removes the field entirely, so nothing about
+        // it is stored or shared (AC-005).
+        if ('address' in patch && !patch.address) delete merged.address
+        return merged
+      })
       dispatch({ type: 'project/upsert', project: next })
       return next
     },
@@ -897,33 +904,50 @@ export function DashboardProvider({ children, clock, idFactory }: DashboardProvi
     [state.project, clock, idFactory],
   )
 
+  /** Re-read one change order after a rejected write so the UI shows the
+   *  decision another tab recorded instead of the stale copy. */
+  const refreshChangeOrder = useCallback(async (id: string) => {
+    const stored = (await getAllChangeOrders()).find((c) => c.id === id)
+    if (stored) dispatch({ type: 'changeOrder/upsert', order: stored })
+    else dispatch({ type: 'changeOrder/delete', id })
+  }, [])
+
   const updateChangeOrder = useCallback<DashboardActions['updateChangeOrder']>(
     async ({ id, patch }) => {
-      const current = state.changeOrders.find((c) => c.id === id)
-      if (!current) throw new Error(`找不到變更單：${id}`)
-      if (!canEditChangeOrder(current)) {
-        throw new ChangeOrderValidationError([
-          { field: 'status', message: '已決定的變更單不可再編輯' },
-        ])
+      if (!state.changeOrders.some((c) => c.id === id)) {
+        throw new Error(`找不到變更單：${id}`)
       }
       const result = validateChangeOrderInput(patch)
       if (!result.ok) {
         throw new ChangeOrderValidationError(result.errors)
       }
-      const updated: ChangeOrder = {
-        ...current,
-        stageId: patch.stageId,
-        title: patch.title.trim(),
-        amount: patch.amount,
-        material: patch.material?.trim() || undefined,
-        note: patch.note?.trim() || undefined,
-        updatedAt: nowISO(clock),
-      }
-      await putChangeOrder(updated)
+      const updatedAt = nowISO(clock)
+      // The "pending only" rule is checked against the STORED order inside the
+      // write transaction: another tab may already have decided it.
+      const updated = await mutateRecord<ChangeOrder>(STORE_CHANGE_ORDERS, id, (stored) => {
+        if (!stored) throw new RecordConflictError(`找不到變更單：${id}`)
+        if (!canEditChangeOrder(stored)) {
+          throw new ChangeOrderValidationError([
+            { field: 'status', message: '已決定的變更單不可再編輯' },
+          ])
+        }
+        return {
+          ...stored,
+          stageId: patch.stageId,
+          title: patch.title.trim(),
+          amount: patch.amount,
+          material: patch.material?.trim() || undefined,
+          note: patch.note?.trim() || undefined,
+          updatedAt,
+        }
+      }).catch(async (err: unknown) => {
+        await refreshChangeOrder(id)
+        throw err
+      })
       dispatch({ type: 'changeOrder/upsert', order: updated })
       return updated
     },
-    [state.changeOrders, clock],
+    [state.changeOrders, clock, refreshChangeOrder],
   )
 
   const deleteChangeOrder = useCallback<DashboardActions['deleteChangeOrder']>(
@@ -936,19 +960,24 @@ export function DashboardProvider({ children, clock, idFactory }: DashboardProvi
 
   const decideChangeOrder = useCallback<DashboardActions['decideChangeOrder']>(
     async ({ id, decision }) => {
-      const current = state.changeOrders.find((c) => c.id === id)
-      if (!current) throw new Error(`找不到變更單：${id}`)
-      const updated = applyChangeOrderDecision(
-        current,
-        decision,
-        todayFromClock(clock),
-        nowISO(clock),
-      )
-      await putChangeOrder(updated)
+      if (!state.changeOrders.some((c) => c.id === id)) {
+        throw new Error(`找不到變更單：${id}`)
+      }
+      const today = todayFromClock(clock)
+      const updatedAt = nowISO(clock)
+      // Decide against the STORED order in one transaction; a decision already
+      // recorded in another tab is never overwritten.
+      const updated = await mutateRecord<ChangeOrder>(STORE_CHANGE_ORDERS, id, (stored) => {
+        if (!stored) throw new RecordConflictError(`找不到變更單：${id}`)
+        return applyChangeOrderDecision(stored, decision, today, updatedAt)
+      }).catch(async (err: unknown) => {
+        await refreshChangeOrder(id)
+        throw err
+      })
       dispatch({ type: 'changeOrder/upsert', order: updated })
       return updated
     },
-    [state.changeOrders, clock],
+    [state.changeOrders, clock, refreshChangeOrder],
   )
 
   // ---------- FR-008 contract & receipts ----------
@@ -1001,7 +1030,9 @@ export function DashboardProvider({ children, clock, idFactory }: DashboardProvi
         createdAt: now,
         updatedAt: now,
       }
-      await putAcceptanceItem(item)
+      // Re-checks the stage inside the write transaction (it may have been
+      // deleted in another tab since this tab loaded).
+      await putAcceptanceItemIfStageExists(item)
       dispatch({ type: 'acceptance/upsert', item })
       return item
     },
@@ -1016,13 +1047,16 @@ export function DashboardProvider({ children, clock, idFactory }: DashboardProvi
       if (!result.ok) {
         throw new AcceptanceValidationError(result.errors)
       }
-      const updated: AcceptanceItem = {
-        ...current,
-        name: patch.name.trim(),
-        note: patch.note?.trim() || undefined,
-        updatedAt: nowISO(clock),
-      }
-      await putAcceptanceItem(updated)
+      const updatedAt = nowISO(clock)
+      const updated = await mutateRecord<AcceptanceItem>(STORE_ACCEPTANCE_ITEMS, id, (stored) => {
+        if (!stored) throw new RecordConflictError(`找不到驗收項目：${id}`)
+        return {
+          ...stored,
+          name: patch.name.trim(),
+          note: patch.note?.trim() || undefined,
+          updatedAt,
+        }
+      })
       dispatch({ type: 'acceptance/upsert', item: updated })
       return updated
     },
@@ -1041,8 +1075,16 @@ export function DashboardProvider({ children, clock, idFactory }: DashboardProvi
     async (id) => {
       const current = state.acceptanceItems.find((a) => a.id === id)
       if (!current) throw new Error(`找不到驗收項目：${id}`)
-      const updated = toggleAcceptancePassed(current, todayFromClock(clock), nowISO(clock))
-      await putAcceptanceItem(updated)
+      // The click means "set to the opposite of what is shown". Apply that
+      // target to the STORED item so a stale tab cannot flip it back.
+      const wantPassed = !current.passed
+      const today = todayFromClock(clock)
+      const updatedAt = nowISO(clock)
+      const updated = await mutateRecord<AcceptanceItem>(STORE_ACCEPTANCE_ITEMS, id, (stored) => {
+        if (!stored) throw new RecordConflictError(`找不到驗收項目：${id}`)
+        if (stored.passed === wantPassed) return stored
+        return toggleAcceptancePassed(stored, today, updatedAt)
+      })
       dispatch({ type: 'acceptance/upsert', item: updated })
       return updated
     },

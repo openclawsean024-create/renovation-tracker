@@ -29,6 +29,7 @@ import { summarizeBudget } from '../budget'
 import { summarizeSchedules } from '../schedule'
 import { summarizeWarranties } from '../warranty'
 import { layoutGantt } from '../gantt'
+import { isDbUpgradeBlocked } from '../db'
 import { sortChangeOrdersForDisplay, summarizeChangeOrders } from '../changeOrders'
 import { summarizeContract } from '../contract'
 import {
@@ -38,10 +39,8 @@ import {
   summarizeAcceptanceByStage,
 } from '../acceptance'
 import {
-  SHARE_HASH_KEY,
   buildShareSnapshot,
-  encodeShareSnapshot,
-  stripShareUrl,
+  buildShareUrl,
   type SharePrivacyOptions,
   type ShareSnapshot,
 } from '../share'
@@ -126,6 +125,22 @@ type ShareFeedback =
   | { tone: 'success'; message: string }
   | { tone: 'error'; message: string }
   | null
+
+/** While loading, explain when an older tab is holding the database open
+ *  (schema upgrade waits for it instead of failing). */
+function UpgradeBlockedHint() {
+  const [blocked, setBlocked] = useState(isDbUpgradeBlocked())
+  useEffect(() => {
+    const timer = setInterval(() => setBlocked(isDbUpgradeBlocked()), 500)
+    return () => clearInterval(timer)
+  }, [])
+  if (!blocked) return null
+  return (
+    <p role="status" data-testid="db-upgrade-blocked">
+      資料庫正在更新，請關閉其他開著本 App 的分頁或視窗，關閉後會自動繼續。
+    </p>
+  )
+}
 
 export function Dashboard({
   clipboard = defaultClipboardWriter(),
@@ -346,9 +361,13 @@ export function Dashboard({
         acceptanceItems: acceptanceItems.map((a) => ({ stageId: a.stageId, passed: a.passed })),
         scheduleContacts: schedules.map((sc) => ({ workerName: sc.workerName, phone: sc.phone })),
       })
-      const encoded = encodeShareSnapshot(snapshot)
-      const base = stripShareUrl(window.location.href)
-      return `${base}#${SHARE_HASH_KEY}=${encoded}`
+      // Same helper the share tests cover: it keeps other key=value hash
+      // params and joins them with `&`, so the recipient's page always finds
+      // the `share=` parameter.
+      return buildShareUrl(snapshot, {
+        href: window.location.href,
+        hash: window.location.hash,
+      })
     },
     [
       acceptanceItems,
@@ -419,21 +438,26 @@ export function Dashboard({
    */
   const handleSharePrivacyChange = useCallback(
     (privacy: Required<SharePrivacyOptions>) => {
+      const next = buildShareUrlFor(privacy)
+      // The checkboxes and the copyable link always change together: the
+      // dialog never offers a link whose contents differ from the boxes shown.
       setShareIncludeAddress(privacy.includeAddress)
       setShareIncludeContacts(privacy.includeContacts)
-      const next = buildShareUrlFor(privacy)
-      if (next === null) return
-      const urlError = applyShareUrl(next)
-      if (urlError) {
-        setShareFeedback({ tone: 'error', message: urlError })
+      setShareDialogCopied(false)
+      if (next === null) {
+        setShareDialogUrl('')
+        setShareFeedback({ tone: 'error', message: '瀏覽器環境不可用，無法產生連結' })
         return
       }
       setShareDialogUrl(next)
-      setShareDialogCopied(false)
-      setShareFeedback({
-        tone: 'success',
-        message: '分享內容已更新，請重新複製連結',
-      })
+      // Updating the address bar is best-effort and separate from the link
+      // offered for copying.
+      const urlError = applyShareUrl(next)
+      setShareFeedback(
+        urlError
+          ? { tone: 'error', message: `分享內容已更新，但${urlError}；請用「複製分享連結」` }
+          : { tone: 'success', message: '分享內容已更新，請重新複製連結' },
+      )
     },
     [applyShareUrl, buildShareUrlFor],
   )
@@ -510,6 +534,7 @@ export function Dashboard({
     return (
       <main className="app-main" aria-busy="true">
         <p>載入中…</p>
+        <UpgradeBlockedHint />
       </main>
     )
   }
@@ -1041,7 +1066,8 @@ export function Dashboard({
             type="button"
             className="btn primary"
             onClick={() => { void handleCopyShareDialogUrl() }}
-            data-testid="share-dialog-copy"
+disabled={!shareDialogUrl}
+                        data-testid="share-dialog-copy"
           >
             {shareDialogCopied ? '已複製' : '複製分享連結'}
           </button>
